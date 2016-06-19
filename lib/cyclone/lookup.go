@@ -98,6 +98,9 @@ func (cl *Cyclone) fetchFromEye(lookup string) *ThresholdConfig {
 }
 
 func (cl *Cyclone) processThresholdData(lookup string, t *ThresholdConfig) {
+	if t.Configurations == nil {
+		return
+	}
 	for _, i := range t.Configurations {
 		t := Thresh{
 			Id:             i.ConfigurationItemId,
