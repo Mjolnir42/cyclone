@@ -35,7 +35,7 @@ func (cl *Cyclone) Lookup(lookup string) map[string]Thresh {
 	if thr != nil {
 		return thr
 	}
-	dat := fetchFromEye(lookup)
+	dat := cl.fetchFromEye(lookup)
 	if dat == nil {
 		return nil
 	}
@@ -68,7 +68,7 @@ func (cl *Cyclone) getThreshold(lookup string) map[string]Thresh {
 	return res
 }
 
-func fetchFromEye(lookup string) *ThresholdConfig {
+func (cl *Cyclone) fetchFromEye(lookup string) *ThresholdConfig {
 	client := &http.Client{}
 	req, err := http.NewRequest(`GET`, fmt.Sprintf("http://%s:%s/api/v1/configuration/%s", `localhost`, `7777`, lookup), nil)
 	if err != nil {
@@ -77,6 +77,9 @@ func fetchFromEye(lookup string) *ThresholdConfig {
 
 	if resp, err := client.Do(req); err != nil {
 		return nil
+	} else if resp.StatusCode == 404 {
+		cl.storeUnconfigured(lookup)
+		return &ThresholdConfig{}
 	} else {
 		var buf []byte
 		buf, err = ioutil.ReadAll(resp.Body)
@@ -125,6 +128,11 @@ func (cl *Cyclone) storeThreshold(lookup string, t *Thresh) {
 
 func (cl *Cyclone) updateEval(id string) {
 	cl.Redis.HSet(`evaluation`, id, time.Now().UTC().Format(time.RFC3339))
+}
+
+func (cl *Cyclone) storeUnconfigured(lookup string) {
+	cl.Redis.HSet(lookup, `unconfigured`, time.Now().UTC().Format(time.RFC3339))
+	cl.Redis.Expire(lookup, 1440*time.Second)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix
