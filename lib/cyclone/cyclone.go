@@ -125,6 +125,9 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		return
 	}
 	thr := cl.Lookup(m.LookupID())
+	if thr == nil {
+		return
+	}
 
 	internalMetric := false
 	switch m.Path {
