@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"time"
 )
@@ -69,6 +70,7 @@ func (cl *Cyclone) getThreshold(lookup string) map[string]Thresh {
 }
 
 func (cl *Cyclone) fetchFromLookupService(lookup string) *ThresholdConfig {
+	log.Println("Looking up configuration data for %s", lookup)
 	client := &http.Client{}
 	req, err := http.NewRequest(`GET`, fmt.Sprintf(
 		"http://%s:%s/%s/%s",

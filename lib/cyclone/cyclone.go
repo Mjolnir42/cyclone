@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -162,6 +163,9 @@ thrloop:
 		if !dispatchAlarm {
 			continue thrloop
 		}
+		log.Printf("Evaluating metric %s from %d against config %s",
+			m.Path, m.AssetId, thr[key].Id)
+
 	lvlloop:
 		for _, lvl := range []uint16{9, 8, 7, 6, 5, 4, 3, 2, 1, 0} {
 			thrval, ok := thr[key].Thresholds[lvl]
@@ -220,6 +224,7 @@ thrloop:
 			)
 		}(al)
 		cl.updateEval(thr[key].Id)
+		log.Println("Dispatched alarm at level %d for %s", alarmLevel, thr[key].Id)
 	}
 }
 
