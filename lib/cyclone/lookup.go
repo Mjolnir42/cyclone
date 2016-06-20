@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 )
 
@@ -28,7 +29,7 @@ type Thresh struct {
 	MetaSource     string
 	MetaTargethost string
 	Predicate      string
-	Thresholds     map[uint16]int64
+	Thresholds     map[string]int64
 }
 
 func (cl *Cyclone) Lookup(lookup string) map[string]Thresh {
@@ -38,6 +39,7 @@ func (cl *Cyclone) Lookup(lookup string) map[string]Thresh {
 	}
 	dat := cl.fetchFromLookupService(lookup)
 	if dat == nil {
+		cl.storeUnconfigured(lookup)
 		return nil
 	}
 	cl.processThresholdData(lookup, dat)
@@ -49,6 +51,9 @@ func (cl *Cyclone) getThreshold(lookup string) map[string]Thresh {
 	res := make(map[string]Thresh)
 	mapdata, err := cl.Redis.HGetAllMap(lookup).Result()
 	if err != nil {
+		return nil
+	}
+	if len(mapdata) == 0 {
 		return nil
 	}
 	for k, _ := range mapdata {
@@ -109,6 +114,10 @@ func (cl *Cyclone) processThresholdData(lookup string, t *ThresholdConfig) {
 	if t.Configurations == nil {
 		return
 	}
+	if len(t.Configurations) == 0 {
+		cl.storeUnconfigured(lookup)
+		return
+	}
 	for _, i := range t.Configurations {
 		t := Thresh{
 			Id:             i.ConfigurationItemId,
@@ -121,16 +130,22 @@ func (cl *Cyclone) processThresholdData(lookup string, t *ThresholdConfig) {
 			MetaSource:     i.Metadata.Source,
 			MetaTargethost: i.Metadata.Targethost,
 		}
+		t.Thresholds = make(map[string]int64)
 		for _, l := range i.Thresholds {
+			lvl := strconv.FormatUint(uint64(l.Level), 10)
 			t.Predicate = l.Predicate
-			t.Thresholds[l.Level] = l.Value
+			t.Thresholds[lvl] = l.Value
 		}
 		cl.storeThreshold(lookup, &t)
 	}
 }
 
 func (cl *Cyclone) storeThreshold(lookup string, t *Thresh) {
-	buf, _ := json.Marshal(t)
+	buf, err := json.Marshal(t)
+	if err != nil {
+		log.Printf("%s: ERROR (storeThreshold) converting threshold data: %s", lookup, err)
+		return
+	}
 	cl.Redis.Set(t.Id, string(buf), 1440*time.Second)
 
 	cl.Redis.HSet(lookup, t.Id, time.Now().UTC().Format(time.RFC3339))
@@ -142,7 +157,9 @@ func (cl *Cyclone) updateEval(id string) {
 }
 
 func (cl *Cyclone) heartbeat() {
-	cl.Redis.HSet(`heartbeat`, `cyclone-alive`, time.Now().UTC().Format(time.RFC3339))
+	if _, err := cl.Redis.HSet(`heartbeat`, `cyclone-alive`, time.Now().UTC().Format(time.RFC3339)).Result(); err != nil {
+		log.Println(`Failed to set heartbeat in Redis`, err)
+	}
 }
 
 func (cl *Cyclone) storeUnconfigured(lookup string) {
