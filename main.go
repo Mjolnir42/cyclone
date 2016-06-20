@@ -32,6 +32,8 @@ func main() {
 	config := consumergroup.NewConfig()
 	config.Offsets.Initial = sarama.OffsetNewest
 	config.Offsets.ProcessingTimeout = 10 * time.Second
+	config.Offsets.CommitInterval = time.Duration(conf.ZkSync) * time.Millisecond
+	config.Offsets.ResetOffsets = conf.ZkResetOffset
 	var zkNodes []string
 
 	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(conf.Zookeeper)
@@ -66,8 +68,6 @@ func main() {
 		go cl.Run()
 	}
 
-	zkCommit := false
-	tock := time.Tick(time.Duration(conf.ZkSync) * time.Millisecond)
 	heartbeat := time.Tick(5 * time.Second)
 
 	ageCutOff := time.Duration(conf.MetricsMaxAge) * time.Minute * -1
@@ -77,8 +77,6 @@ runloop:
 		select {
 		case <-c:
 			break runloop
-		case <-tock:
-			zkCommit = true
 		case <-heartbeat:
 			handlers[0].Input <- &metric.Metric{
 				Path: `_internal.cyclone.heartbeat`,
@@ -138,28 +136,26 @@ runloop:
 				m = nil
 			}
 			if m == nil {
-				if zkCommit {
-					offsets[message.Topic][message.Partition] = message.Offset
-					consumer.CommitUpto(message)
-					zkCommit = false
-				}
+				//log.Println(`Skipping metric with nil masking`)
+				offsets[message.Topic][message.Partition] = message.Offset
+				consumer.CommitUpto(message)
 				continue
 			}
 
 			// ignore metrics that are simply too old for useful
 			// alerting
 			if time.Now().UTC().Add(ageCutOff).After(m.TS.UTC()) {
+				//log.Printf("Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
+				offsets[message.Topic][message.Partition] = message.Offset
+				consumer.CommitUpto(message)
 				continue
 			}
 
 			handlers[int(m.AssetId)%runtime.NumCPU()].Input <- m
 			log.Printf("Sent %s/%d/%d\n to processing", message.Topic, message.Partition, message.Offset)
 
-			if zkCommit {
-				offsets[message.Topic][message.Partition] = message.Offset
-				consumer.CommitUpto(message)
-				zkCommit = false
-			}
+			offsets[message.Topic][message.Partition] = message.Offset
+			consumer.CommitUpto(message)
 		}
 	}
 	if err := consumer.Close(); err != nil {
