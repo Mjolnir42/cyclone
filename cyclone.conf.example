@@ -1,0 +1,12 @@
+# cyclone configuration file
+zookeeper.connect: 'localhost:2181/kafka'
+zookeeper.commit.ms: '1000'
+topics: 'metrics'
+consumergroup.name: 'cyclone'
+redis.connect: 'localhost:6379'
+redis.password: 'sikrit'
+redis.db: '0'
+alarming.destination: 'http://localhost:80/alarms'
+lookup.host: 'localhost'
+lookup.port: '7777'
+lookup.path: 'api/v1/configuration'

@@ -35,7 +35,7 @@ func (cl *Cyclone) Lookup(lookup string) map[string]Thresh {
 	if thr != nil {
 		return thr
 	}
-	dat := cl.fetchFromEye(lookup)
+	dat := cl.fetchFromLookupService(lookup)
 	if dat == nil {
 		return nil
 	}
@@ -68,9 +68,15 @@ func (cl *Cyclone) getThreshold(lookup string) map[string]Thresh {
 	return res
 }
 
-func (cl *Cyclone) fetchFromEye(lookup string) *ThresholdConfig {
+func (cl *Cyclone) fetchFromLookupService(lookup string) *ThresholdConfig {
 	client := &http.Client{}
-	req, err := http.NewRequest(`GET`, fmt.Sprintf("http://%s:%s/api/v1/configuration/%s", `localhost`, `7777`, lookup), nil)
+	req, err := http.NewRequest(`GET`, fmt.Sprintf(
+		"http://%s:%s/%s/%s",
+		cl.CfgLookupHost,
+		cl.CfgLookupPort,
+		cl.CfgLookupPath,
+		lookup,
+	), nil)
 	if err != nil {
 		return nil
 	}

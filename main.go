@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/Shopify/sarama"
@@ -23,16 +24,21 @@ import (
 )
 
 func main() {
+	conf := CycloneConfig{}
+	if err := conf.readConfigFile(`cyclone.conf`); err != nil {
+		log.Fatalln(err)
+	}
+
 	config := consumergroup.NewConfig()
 	config.Offsets.Initial = sarama.OffsetNewest
 	config.Offsets.ProcessingTimeout = 10 * time.Second
 	var zkNodes []string
 
-	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(`localhost:2181/kafkas`)
+	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(conf.Zookeeper)
 
-	topic := []string{`metrics`}
+	topic := strings.Split(conf.Topics, `,`)
 
-	consumer, err := consumergroup.JoinConsumerGroup(`cyclone`, topic, zkNodes, config)
+	consumer, err := consumergroup.JoinConsumerGroup(conf.ConsumerGroup, topic, zkNodes, config)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -45,7 +51,15 @@ func main() {
 	handlers := make(map[int]cyclone.Cyclone)
 
 	for i := 0; i < runtime.NumCPU(); {
-		cl := cyclone.Cyclone{}
+		cl := cyclone.Cyclone{
+			CfgRedisConnect:     conf.RedisConnect,
+			CfgRedisPassword:    conf.RedisPassword,
+			CfgRedisDB:          conf.RedisDB,
+			CfgAlarmDestination: conf.AlarmDestination,
+			CfgLookupHost:       conf.LookupHost,
+			CfgLookupPort:       conf.LookupPort,
+			CfgLookupPath:       conf.LookupPath,
+		}
 		handlers[i] = cl
 		go cl.Run()
 	}

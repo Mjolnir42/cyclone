@@ -22,11 +22,18 @@ import (
 )
 
 type Cyclone struct {
-	CpuData map[int64]cpu.Cpu
-	MemData map[int64]mem.Mem
-	CtxData map[int64]cpu.Ctx
-	Input   chan *metric.Metric
-	Redis   *redis.Client
+	CpuData             map[int64]cpu.Cpu
+	MemData             map[int64]mem.Mem
+	CtxData             map[int64]cpu.Ctx
+	Input               chan *metric.Metric
+	Redis               *redis.Client
+	CfgRedisConnect     string
+	CfgRedisPassword    string
+	CfgRedisDB          int64
+	CfgAlarmDestination string
+	CfgLookupHost       string
+	CfgLookupPort       string
+	CfgLookupPath       string
 }
 
 type AlarmEvent struct {
@@ -50,9 +57,9 @@ func (cl *Cyclone) Run() {
 	cl.CtxData = make(map[int64]cpu.Ctx)
 	cl.Input = make(chan *metric.Metric)
 	cl.Redis = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: ``,
-		DB:       6,
+		Addr:     cl.CfgRedisConnect,
+		Password: cl.CfgRedisPassword,
+		DB:       cl.CfgRedisDB,
 	})
 
 	for {
@@ -207,7 +214,7 @@ thrloop:
 			b := new(bytes.Buffer)
 			json.NewEncoder(b).Encode(a)
 			http.Post(
-				`localhost:80`,
+				cl.CfgAlarmDestination,
 				`application/json; charset=utf-8`,
 				b,
 			)
