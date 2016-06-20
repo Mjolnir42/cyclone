@@ -55,7 +55,10 @@ func main() {
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		log.Printf("Starting cyclone handler %d", i)
+		cChan := make(chan *metric.Metric)
 		cl := cyclone.Cyclone{
+			Num:                 i,
+			Input:               cChan,
 			CfgRedisConnect:     conf.RedisConnect,
 			CfgRedisPassword:    conf.RedisPassword,
 			CfgRedisDB:          conf.RedisDB,
@@ -81,7 +84,7 @@ runloop:
 			handlers[0].Input <- &metric.Metric{
 				Path: `_internal.cyclone.heartbeat`,
 			}
-			continue
+			continue runloop
 		case e := <-consumer.Errors():
 			log.Println(e)
 		case message := <-consumer.Messages():
