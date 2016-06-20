@@ -50,7 +50,8 @@ func main() {
 	offsets := make(map[string]map[int32]int64)
 	handlers := make(map[int]cyclone.Cyclone)
 
-	for i := 0; i < runtime.NumCPU(); {
+	for i := 0; i < runtime.NumCPU(); i++ {
+		log.Printf("Starting cyclone handler %d", i)
 		cl := cyclone.Cyclone{
 			CfgRedisConnect:     conf.RedisConnect,
 			CfgRedisPassword:    conf.RedisPassword,
