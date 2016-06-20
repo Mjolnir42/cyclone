@@ -64,11 +64,16 @@ func main() {
 		go cl.Run()
 	}
 
+	zkCommit := false
+	tock := time.Tick(time.Duration(conf.ZkSync) * time.Millisecond)
+
 runloop:
 	for {
 		select {
 		case <-c:
 			break runloop
+		case <-tock:
+			zkCommit = true
 		case e := <-consumer.Errors():
 			log.Println(e)
 		case message := <-consumer.Messages():
@@ -120,16 +125,22 @@ runloop:
 				m = nil
 			}
 			if m == nil {
-				offsets[message.Topic][message.Partition] = message.Offset
-				consumer.CommitUpto(message)
+				if zkCommit {
+					offsets[message.Topic][message.Partition] = message.Offset
+					consumer.CommitUpto(message)
+					zkCommit = false
+				}
 				continue
 			}
 
 			handlers[int(m.AssetId)%runtime.NumCPU()].Input <- m
 			log.Printf("Sent %s/%d/%d\n to processing", message.Topic, message.Partition, message.Offset)
 
-			offsets[message.Topic][message.Partition] = message.Offset
-			consumer.CommitUpto(message)
+			if zkCommit {
+				offsets[message.Topic][message.Partition] = message.Offset
+				consumer.CommitUpto(message)
+				zkCommit = false
+			}
 		}
 	}
 	if err := consumer.Close(); err != nil {
