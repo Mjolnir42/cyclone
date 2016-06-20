@@ -199,7 +199,7 @@ thrloop:
 			if !ok {
 				continue
 			}
-			log.Printf("Cyclone[%d], Checking %s alarmlevel %s\n", thr[key].Id, lvl)
+			log.Printf("Cyclone[%d], Checking %s alarmlevel %s\n", cl.Num, thr[key].Id, lvl)
 			switch m.Type {
 			case `integer`:
 				fallthrough
