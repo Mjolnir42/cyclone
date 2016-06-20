@@ -67,6 +67,7 @@ func main() {
 			CfgLookupHost:       conf.LookupHost,
 			CfgLookupPort:       conf.LookupPort,
 			CfgLookupPath:       conf.LookupPath,
+			TestMode:            conf.TestMode,
 		}
 		handlers[i] = cl
 		go cl.Run()

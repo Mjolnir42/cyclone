@@ -40,6 +40,7 @@ type Cyclone struct {
 	CfgLookupHost       string
 	CfgLookupPort       string
 	CfgLookupPath       string
+	TestMode            bool
 	internalInput       chan *metric.Metric
 }
 
@@ -290,6 +291,11 @@ thrloop:
 				brokenThr,
 			)
 		}
+		cl.updateEval(thr[key].Id)
+		if cl.TestMode {
+			// do not send out alarms in testmode
+			continue thrloop
+		}
 		go func(a AlarmEvent) {
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}
@@ -309,7 +315,6 @@ thrloop:
 			log.Printf("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
 				cl.Num, a.EventId, a.Level, resp.StatusCode)
 		}(al)
-		cl.updateEval(thr[key].Id)
 	}
 	if evaluations == 0 {
 		log.Printf("Cyclone[%d], metric %s(%d) matched no configurations\n", cl.Num, m.Path, m.AssetId)
