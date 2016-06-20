@@ -67,6 +67,8 @@ func main() {
 	zkCommit := false
 	tock := time.Tick(time.Duration(conf.ZkSync) * time.Millisecond)
 
+	ageCutOff := time.Duration(conf.MetricsMaxAge) * time.Minute * -1
+
 runloop:
 	for {
 		select {
@@ -130,6 +132,12 @@ runloop:
 					consumer.CommitUpto(message)
 					zkCommit = false
 				}
+				continue
+			}
+
+			// ignore metrics that are simply too old for useful
+			// alerting
+			if time.Now().UTC().Add(ageCutOff).After(m.TS.UTC()) {
 				continue
 			}
 

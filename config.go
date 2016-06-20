@@ -22,6 +22,7 @@ type CycloneConfig struct {
 	Zookeeper        string `json:"zookeeper.connect"`
 	ZkSync           int    `json:"zookeeper.commit.ms,string"`
 	Topics           string `json:"topics"`
+	MetricsMaxAge    int    `json:"metrics.max.age.hours,string"`
 	ConsumerGroup    string `json:"consumergroup.name"`
 	RedisConnect     string `json:"redis.connect"`
 	RedisPassword    string `json:"redis.password"`

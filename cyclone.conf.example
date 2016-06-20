@@ -2,6 +2,7 @@
 zookeeper.connect: 'localhost:2181/kafka'
 zookeeper.commit.ms: '1000'
 topics: 'metrics'
+metrics.max.age.minutes: '120'
 consumergroup.name: 'cyclone'
 redis.connect: 'localhost:6379'
 redis.password: 'sikrit'
