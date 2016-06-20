@@ -68,11 +68,17 @@ func (cl *Cyclone) Run() {
 		log.Fatalln(err)
 	}
 
-	log.Printf("Cyclone handler %d ready for input\n", cl.Num)
+	log.Printf("Cyclone[%d], Handler ready for input\n", cl.Num)
 
 	for {
 		select {
 		case m := <-cl.Input:
+			log.Printf(
+				"Cyclone[%d], Received metric %s from %d\n",
+				cl.Num,
+				m.Path,
+				m.AssetId,
+			)
 			cl.eval(m)
 		}
 	}
@@ -140,12 +146,20 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		cl.MemData[id] = mm
 	}
 	if m == nil {
+		fmt.Printf("Cyclone[%d], Metric has been consumed", cl.Num)
 		return
 	}
-	thr := cl.Lookup(m.LookupID())
+	lid := m.LookupID()
+	thr := cl.Lookup(lid)
 	if thr == nil {
+		log.Printf("Cyclone[%d], ERROR fetching threshold data. Lookup service available?", cl.Num)
 		return
 	}
+	if len(thr) == 0 {
+		log.Printf("Cyclone[%d], No thresholds configured for %s from %d\n", cl.Num, m.Path, m.AssetId)
+		return
+	}
+	log.Printf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)\n", cl.Num, m.Path, m.AssetId, lid)
 
 	internalMetric := false
 	switch m.Path {
@@ -156,6 +170,8 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 	case `memory.usage.percent`:
 		internalMetric = true
 	}
+
+	evaluations := 0
 
 thrloop:
 	for key, _ := range thr {
@@ -173,8 +189,9 @@ thrloop:
 		if !dispatchAlarm {
 			continue thrloop
 		}
-		log.Printf("Evaluating metric %s from %d against config %s",
-			m.Path, m.AssetId, thr[key].Id)
+		log.Printf("Cyclone[%d], Evaluating metric %s from %d against config %s",
+			cl.Num, m.Path, m.AssetId, thr[key].Id)
+		evaluations++
 
 	lvlloop:
 		for _, lvl := range []string{`9`, `8`, `7`, `6`, `5`, `4`, `3`, `2`, `1`, `0`} {
@@ -182,6 +199,7 @@ thrloop:
 			if !ok {
 				continue
 			}
+			log.Printf("Cyclone[%d], Checking %s alarmlevel %s\n", thr[key].Id, lvl)
 			switch m.Type {
 			case `integer`:
 				fallthrough
@@ -201,7 +219,7 @@ thrloop:
 			}
 		}
 		al := AlarmEvent{
-			Source:     thr[key].MetaSource,
+			Source:     fmt.Sprintf("%s / %s", thr[key].MetaTargethost, thr[key].MetaSource),
 			EventId:    thr[key].Id,
 			Version:    `1.0`,
 			Sourcehost: thr[key].MetaTargethost,
@@ -217,7 +235,7 @@ thrloop:
 			al.Message = `Ok.`
 		} else {
 			al.Message = fmt.Sprintf(
-				"Metric %s threshold broken. Value %s %s %d",
+				"Metric %s has broken threshold. Value %s %s %d",
 				m.Path,
 				fVal,
 				thr[key].Predicate,
@@ -228,22 +246,25 @@ thrloop:
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}
 			if err := json.NewEncoder(b).Encode(aSlice); err != nil {
-				log.Printf("%s: error json encoding alarm: %s", a.EventId, err)
+				log.Printf("Cyclone[%d], ERROR json encoding alarm for %s: %s", a.EventId, err)
 				return
 			}
-			log.Println(string(b.String()))
 			resp, err := http.Post(
 				cl.CfgAlarmDestination,
 				`application/json; charset=utf-8`,
 				b,
 			)
 			if err != nil {
-				log.Printf("%s: error sending alarm: %s", a.EventId, err)
+				log.Printf("Cyclone[%d], ERROR sending alarm for %s: %s", a.EventId, err)
 				return
 			}
-			log.Printf("%s: Dispatched alarm at level %d, returncode was %d", a.EventId, a.Level, resp.StatusCode)
+			log.Printf("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
+				cl.Num, a.EventId, a.Level, resp.StatusCode)
 		}(al)
 		cl.updateEval(thr[key].Id)
+	}
+	if evaluations == 0 {
+		log.Printf("Cyclone[%d], metric %s(%d) matched no configurations\n", cl.Num, m.Path, m.AssetId)
 	}
 }
 
@@ -263,6 +284,7 @@ func CmpInt(pred string, value, threshold int64) (bool, string) {
 	case `!=`:
 		return value != threshold, fVal
 	default:
+		log.Printf("Cyclone[], ERROR unknown predicate: %s", pred)
 		return false, ``
 	}
 }
@@ -284,6 +306,7 @@ func CmpFlp(pred string, value float64, threshold int64) (bool, string) {
 	case `!=`:
 		return value != fthreshold, fVal
 	default:
+		log.Printf("Cyclone[], ERROR unknown predicate: %s", pred)
 		return false, ``
 	}
 }

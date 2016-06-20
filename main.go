@@ -54,7 +54,7 @@ func main() {
 	handlers := make(map[int]cyclone.Cyclone)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
-		log.Printf("Starting cyclone handler %d", i)
+		log.Printf("MAIN, Starting cyclone handler %d", i)
 		cChan := make(chan *metric.Metric)
 		cl := cyclone.Cyclone{
 			Num:                 i,
@@ -92,13 +92,13 @@ runloop:
 				offsets[message.Topic] = make(map[int32]int64)
 			}
 
-			log.Printf("Received topic/partition/offset %s/%d%d for processing",
+			log.Printf("MAIN, Received topic:%s/partition:%d/offset:%d",
 				message.Topic, message.Partition, message.Offset)
 
 			eventCount += 1
 			if offsets[message.Topic][message.Partition] != 0 &&
 				offsets[message.Topic][message.Partition] != message.Offset-1 {
-				log.Printf("Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n",
+				log.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n",
 					message.Topic, message.Partition,
 					offsets[message.Topic][message.Partition]+1, message.Offset,
 					message.Offset-offsets[message.Topic][message.Partition]+1,
@@ -107,7 +107,7 @@ runloop:
 
 			m, err := metric.FromBytes(message.Value)
 			if err != nil {
-				log.Println(err)
+				log.Printf("MAIN ERROR, Decoding metric data: %s\n", err)
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -139,7 +139,7 @@ runloop:
 				m = nil
 			}
 			if m == nil {
-				//log.Println(`Skipping metric with nil masking`)
+				log.Println(`MAIN, Ignoring received metric`)
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -148,14 +148,13 @@ runloop:
 			// ignore metrics that are simply too old for useful
 			// alerting
 			if time.Now().UTC().Add(ageCutOff).After(m.TS.UTC()) {
-				//log.Printf("Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
+				log.Printf("MAIN ERROR, Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
 			}
 
 			handlers[int(m.AssetId)%runtime.NumCPU()].Input <- m
-			log.Printf("Sent %s/%d/%d\n to processing", message.Topic, message.Partition, message.Offset)
 
 			offsets[message.Topic][message.Partition] = message.Offset
 			consumer.CommitUpto(message)
