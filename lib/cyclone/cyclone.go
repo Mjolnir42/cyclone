@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/mjolnir42/cyclone/lib/cpu"
@@ -23,6 +24,7 @@ import (
 )
 
 type Cyclone struct {
+	Num                 int
 	CpuData             map[int64]cpu.Cpu
 	MemData             map[int64]mem.Mem
 	CtxData             map[int64]cpu.Ctx
@@ -56,12 +58,17 @@ func (cl *Cyclone) Run() {
 	cl.CpuData = make(map[int64]cpu.Cpu)
 	cl.MemData = make(map[int64]mem.Mem)
 	cl.CtxData = make(map[int64]cpu.Ctx)
-	cl.Input = make(chan *metric.Metric)
 	cl.Redis = redis.NewClient(&redis.Options{
 		Addr:     cl.CfgRedisConnect,
 		Password: cl.CfgRedisPassword,
 		DB:       cl.CfgRedisDB,
 	})
+	defer cl.Redis.Close()
+	if _, err := cl.Redis.Ping().Result(); err != nil {
+		log.Fatalln(err)
+	}
+
+	log.Printf("Cyclone handler %d ready for input\n", cl.Num)
 
 	for {
 		select {
@@ -152,16 +159,16 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 
 thrloop:
 	for key, _ := range thr {
-		var alarmLevel uint16 = 0
+		var alarmLevel string = "0"
 		var brokenThr int64 = 0
 		dispatchAlarm := false
 		broken := false
 		fVal := ``
 		if internalMetric {
-			dispatchAlarm = false
+			dispatchAlarm = true
 		}
 		if len(m.Tags) > 0 && m.Tags[0] == thr[key].Id {
-			dispatchAlarm = false
+			dispatchAlarm = true
 		}
 		if !dispatchAlarm {
 			continue thrloop
@@ -170,7 +177,7 @@ thrloop:
 			m.Path, m.AssetId, thr[key].Id)
 
 	lvlloop:
-		for _, lvl := range []uint16{9, 8, 7, 6, 5, 4, 3, 2, 1, 0} {
+		for _, lvl := range []string{`9`, `8`, `7`, `6`, `5`, `4`, `3`, `2`, `1`, `0`} {
 			thrval, ok := thr[key].Thresholds[lvl]
 			if !ok {
 				continue
@@ -200,13 +207,13 @@ thrloop:
 			Sourcehost: thr[key].MetaTargethost,
 			Oncall:     thr[key].Oncall,
 			Targethost: thr[key].MetaTargethost,
-			Level:      int64(alarmLevel),
 			Timestamp:  time.Now().UTC().Format(time.RFC3339Nano),
 			Check:      fmt.Sprintf("cyclone(%s)", m.Path),
 			Monitoring: thr[key].MetaMonitoring,
 			Team:       thr[key].MetaTeam,
 		}
-		if alarmLevel == 0 {
+		al.Level, _ = strconv.ParseInt(alarmLevel, 10, 64)
+		if alarmLevel == `0` {
 			al.Message = `Ok.`
 		} else {
 			al.Message = fmt.Sprintf(
@@ -219,20 +226,29 @@ thrloop:
 		}
 		go func(a AlarmEvent) {
 			b := new(bytes.Buffer)
-			json.NewEncoder(b).Encode(a)
-			http.Post(
+			aSlice := []AlarmEvent{a}
+			if err := json.NewEncoder(b).Encode(aSlice); err != nil {
+				log.Printf("%s: error json encoding alarm: %s", a.EventId, err)
+				return
+			}
+			log.Println(string(b.String()))
+			resp, err := http.Post(
 				cl.CfgAlarmDestination,
 				`application/json; charset=utf-8`,
 				b,
 			)
+			if err != nil {
+				log.Printf("%s: error sending alarm: %s", a.EventId, err)
+				return
+			}
+			log.Printf("%s: Dispatched alarm at level %d, returncode was %d", a.EventId, a.Level, resp.StatusCode)
 		}(al)
 		cl.updateEval(thr[key].Id)
-		log.Println("Dispatched alarm at level %d for %s", alarmLevel, thr[key].Id)
 	}
 }
 
 func CmpInt(pred string, value, threshold int64) (bool, string) {
-	fVal := fmt.Sprintf("%.3d", value)
+	fVal := fmt.Sprintf("%d", value)
 	switch pred {
 	case `<`:
 		return value < threshold, fVal
