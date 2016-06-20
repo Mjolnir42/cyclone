@@ -23,7 +23,7 @@ type CycloneConfig struct {
 	ZkSync           int    `json:"zookeeper.commit.ms,string"`
 	ZkResetOffset    bool   `json:"zookeeper.reset.offset.on.startup,string"`
 	Topics           string `json:"topics"`
-	MetricsMaxAge    int    `json:"metrics.max.age.hours,string"`
+	MetricsMaxAge    int    `json:"metrics.max.age.minutes,string"`
 	ConsumerGroup    string `json:"consumergroup.name"`
 	RedisConnect     string `json:"redis.connect"`
 	RedisPassword    string `json:"redis.password"`
