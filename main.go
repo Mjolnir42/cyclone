@@ -35,6 +35,7 @@ func main() {
 	var zkNodes []string
 
 	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(conf.Zookeeper)
+	log.Println(`Using ZK chroot: `, config.Zookeeper.Chroot)
 
 	topic := strings.Split(conf.Topics, `,`)
 
@@ -89,6 +90,9 @@ runloop:
 			if offsets[message.Topic] == nil {
 				offsets[message.Topic] = make(map[int32]int64)
 			}
+
+			log.Printf("Received topic/partition/offset %s/%d%d for processing",
+				message.Topic, message.Partition, message.Offset)
 
 			eventCount += 1
 			if offsets[message.Topic][message.Partition] != 0 &&
