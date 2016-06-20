@@ -66,6 +66,7 @@ func main() {
 
 	zkCommit := false
 	tock := time.Tick(time.Duration(conf.ZkSync) * time.Millisecond)
+	heartbeat := time.Tick(5 * time.Second)
 
 	ageCutOff := time.Duration(conf.MetricsMaxAge) * time.Minute * -1
 
@@ -76,6 +77,11 @@ runloop:
 			break runloop
 		case <-tock:
 			zkCommit = true
+		case <-heartbeat:
+			handlers[0].Input <- &metric.Metric{
+				Path: `_internal.cyclone.heartbeat`,
+			}
+			continue
 		case e := <-consumer.Errors():
 			log.Println(e)
 		case message := <-consumer.Messages():

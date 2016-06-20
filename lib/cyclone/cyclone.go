@@ -74,6 +74,9 @@ func (cl *Cyclone) Run() {
 func (cl *Cyclone) eval(m *metric.Metric) {
 	// Processing
 	switch m.Path {
+	case `_internal.cyclone.heartbeat`:
+		cl.heartbeat()
+		return
 	case `/sys/cpu/ctx`:
 		ctx := cpu.Ctx{}
 		id := m.AssetId

@@ -141,6 +141,10 @@ func (cl *Cyclone) updateEval(id string) {
 	cl.Redis.HSet(`evaluation`, id, time.Now().UTC().Format(time.RFC3339))
 }
 
+func (cl *Cyclone) heartbeat() {
+	cl.Redis.HSet(`heartbeat`, `cyclone-alive`, time.Now().UTC().Format(time.RFC3339))
+}
+
 func (cl *Cyclone) storeUnconfigured(lookup string) {
 	cl.Redis.HSet(lookup, `unconfigured`, time.Now().UTC().Format(time.RFC3339))
 	cl.Redis.Expire(lookup, 1440*time.Second)
