@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/mjolnir42/cyclone/lib/cpu"
+	"github.com/mjolnir42/cyclone/lib/disk"
 	"github.com/mjolnir42/cyclone/lib/mem"
 	"github.com/mjolnir42/cyclone/lib/metric"
 	"gopkg.in/redis.v3"
@@ -29,6 +30,7 @@ type Cyclone struct {
 	CpuData             map[int64]cpu.Cpu
 	MemData             map[int64]mem.Mem
 	CtxData             map[int64]cpu.Ctx
+	DskData             map[int64]map[string]disk.Disk
 	Input               chan *metric.Metric
 	Redis               *redis.Client
 	CfgRedisConnect     string
@@ -38,6 +40,7 @@ type Cyclone struct {
 	CfgLookupHost       string
 	CfgLookupPort       string
 	CfgLookupPath       string
+	internalInput       chan *metric.Metric
 }
 
 type AlarmEvent struct {
@@ -59,6 +62,8 @@ func (cl *Cyclone) Run() {
 	cl.CpuData = make(map[int64]cpu.Cpu)
 	cl.MemData = make(map[int64]mem.Mem)
 	cl.CtxData = make(map[int64]cpu.Ctx)
+	cl.DskData = make(map[int64]map[string]disk.Disk)
+	cl.internalInput = make(chan *metric.Metric, 32)
 	cl.Redis = redis.NewClient(&redis.Options{
 		Addr:     cl.CfgRedisConnect,
 		Password: cl.CfgRedisPassword,
@@ -73,6 +78,14 @@ func (cl *Cyclone) Run() {
 
 	for {
 		select {
+		case m := <-cl.internalInput:
+			log.Printf(
+				"Cyclone[%d], Received metric %s from %d\n",
+				cl.Num,
+				m.Path,
+				m.AssetId,
+			)
+			cl.eval(m)
 		case m := <-cl.Input:
 			log.Printf(
 				"Cyclone[%d], Received metric %s from %d\n",
@@ -145,6 +158,40 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		mm.Update(m)
 		m = mm.Calculate()
 		cl.MemData[id] = mm
+
+	case `/sys/disk/blk_total`:
+		fallthrough
+	case `/sys/disk/blk_used`:
+		fallthrough
+	case `/sys/disk/blk_read`:
+		fallthrough
+	case `/sys/disk/blk_wrtn`:
+		if len(m.Tags) == 0 {
+			m = nil
+			break
+		}
+		d := disk.Disk{}
+		id := m.AssetId
+		mpt := m.Tags[0]
+		if cl.DskData[id] == nil {
+			cl.DskData[id] = make(map[string]disk.Disk)
+		}
+		if _, ok := cl.DskData[id][mpt]; !ok {
+			cl.DskData[id][mpt] = d
+		}
+		if _, ok := cl.DskData[id][mpt]; ok {
+			d = cl.DskData[id][mpt]
+		}
+		d.Update(m)
+		mArr := d.Calculate()
+		if mArr != nil {
+			for _, mPtr := range mArr {
+				// no deadlock, channel is buffered
+				cl.internalInput <- mPtr
+			}
+		}
+		cl.DskData[id][mpt] = d
+		m = nil
 	}
 	if m == nil {
 		fmt.Printf("Cyclone[%d], Metric has been consumed", cl.Num)

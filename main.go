@@ -116,14 +116,6 @@ runloop:
 
 			// ignored metrics
 			switch m.Path {
-			case `/sys/disk/blk_read`:
-				fallthrough
-			case `/sys/disk/blk_total`:
-				fallthrough
-			case `/sys/disk/blk_used`:
-				fallthrough
-			case `/sys/disk/blk_wrtn`:
-				fallthrough
 			case `/sys/disk/fs`:
 				fallthrough
 			case `/sys/disk/mounts`:
