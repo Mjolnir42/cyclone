@@ -1,5 +1,6 @@
 /*-
  * Copyright © 2016, Jörg Pernfuß <code.jpe@gmail.com>
+ * Copyright © 2016, 1&1 Internet SE
  * All rights reserved.
  *
  * Use of this source code is governed by a 2-clause BSD license
