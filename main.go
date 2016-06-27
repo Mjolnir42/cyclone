@@ -130,6 +130,54 @@ runloop:
 			case `/sys/net/tx_bytes`:
 				fallthrough
 			case `/sys/net/tx_packets`:
+				fallthrough
+			case `/sys/memory/swapcached`:
+				fallthrough
+			case `/sys/load/last_pid`:
+				fallthrough
+			case `/sys/cpu/idletime`:
+				fallthrough
+			case `/sys/cpu/MHz`:
+				fallthrough
+			case `/sys/net/bondslave`:
+				fallthrough
+			case `/sys/net/connstates/ipv4`:
+				fallthrough
+			case `/sys/net/connstates/ipv6`:
+				fallthrough
+			case `/sys/net/duplex`:
+				fallthrough
+			case `/sys/net/ipv4_addr`:
+				fallthrough
+			case `/sys/net/ipv6_addr`:
+				fallthrough
+			case `/sys/net/speed`:
+				fallthrough
+			case `/sys/net/ipvs/conn/count`:
+				fallthrough
+			case `/sys/net/ipvs/conn/servercount`:
+				fallthrough
+			case `/sys/net/ipvs/conn/serverstatecount`:
+				fallthrough
+			case `/sys/net/ipvs/conn/statecount`:
+				fallthrough
+			case `/sys/net/ipvs/conn/vipconns`:
+				fallthrough
+			case `/sys/net/ipvs/conn/vipstatecount`:
+				fallthrough
+			case `/sys/net/ipvs/count`:
+				fallthrough
+			case `/sys/net/ipvs/detail`:
+				fallthrough
+			case `/sys/net/ipvs/state`:
+				fallthrough
+			case `/sys/net/quagga/bgp/announce`:
+				fallthrough
+			case `/sys/net/quagga/bgp/connage`:
+				fallthrough
+			case `/sys/net/quagga/bgp/connstate`:
+				fallthrough
+			case `/sys/net/quagga/bgp/neighbour`:
 				m = nil
 			}
 			if m == nil {
