@@ -13,6 +13,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -312,12 +314,17 @@ thrloop:
 				`application/json; charset=utf-8`,
 				b,
 			)
+
 			if err != nil {
 				log.Printf("Cyclone[%d], ERROR sending alarm for %s: %s", a.EventId, err)
 				return
 			}
 			log.Printf("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
 				cl.Num, a.EventId, a.Level, resp.StatusCode)
+			// ensure http.Response.Body is consumed and closed,
+			// otherwise it leaks filehandles
+			io.Copy(ioutil.Discard, resp.Body)
+			resp.Body.Close()
 		}(al)
 	}
 	if evaluations == 0 {
