@@ -76,13 +76,13 @@ func (cl *Cyclone) Run() {
 		log.Fatalln(err)
 	}
 
-	log.Printf("Cyclone[%d], Handler ready for input\n", cl.Num)
+	log.Printf("Cyclone[%d], Handler ready for input", cl.Num)
 
 	for {
 		select {
 		case m := <-cl.internalInput:
 			log.Printf(
-				"Cyclone[%d], Received metric %s from %d\n",
+				"Cyclone[%d], Received metric %s from %d",
 				cl.Num,
 				m.Path,
 				m.AssetId,
@@ -90,7 +90,7 @@ func (cl *Cyclone) Run() {
 			cl.eval(m)
 		case m := <-cl.Input:
 			log.Printf(
-				"Cyclone[%d], Received metric %s from %d\n",
+				"Cyclone[%d], Received metric %s from %d",
 				cl.Num,
 				m.Path,
 				m.AssetId,
@@ -196,7 +196,7 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		m = nil
 	}
 	if m == nil {
-		fmt.Printf("Cyclone[%d], Metric has been consumed", cl.Num)
+		log.Printf("Cyclone[%d], Metric has been consumed\n", cl.Num)
 		return
 	}
 	lid := m.LookupID()
@@ -206,10 +206,10 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		return
 	}
 	if len(thr) == 0 {
-		log.Printf("Cyclone[%d], No thresholds configured for %s from %d\n", cl.Num, m.Path, m.AssetId)
+		log.Printf("Cyclone[%d], No thresholds configured for %s from %d", cl.Num, m.Path, m.AssetId)
 		return
 	}
-	log.Printf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)\n", cl.Num, m.Path, m.AssetId, lid)
+	log.Printf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", cl.Num, m.Path, m.AssetId, lid)
 
 	internalMetric := false
 	switch m.Path {
@@ -249,7 +249,7 @@ thrloop:
 			if !ok {
 				continue
 			}
-			log.Printf("Cyclone[%d], Checking %s alarmlevel %s\n", cl.Num, thr[key].Id, lvl)
+			log.Printf("Cyclone[%d], Checking %s alarmlevel %s", cl.Num, thr[key].Id, lvl)
 			switch m.Type {
 			case `integer`:
 				fallthrough
@@ -318,7 +318,7 @@ thrloop:
 		}(al)
 	}
 	if evaluations == 0 {
-		log.Printf("Cyclone[%d], metric %s(%d) matched no configurations\n", cl.Num, m.Path, m.AssetId)
+		log.Printf("Cyclone[%d], metric %s(%d) matched no configurations", cl.Num, m.Path, m.AssetId)
 	}
 }
 
