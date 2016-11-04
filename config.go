@@ -33,6 +33,7 @@ type CycloneConfig struct {
 	LookupPort       string `json:"lookup.port"`
 	LookupPath       string `json:"lookup.path"`
 	TestMode         bool   `json:"testmode,string"`
+	ApiVersion       string `json:"api.version"`
 }
 
 func (c *CycloneConfig) readConfigFile(fname string) error {

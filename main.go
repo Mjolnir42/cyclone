@@ -67,6 +67,7 @@ func main() {
 			CfgLookupHost:       conf.LookupHost,
 			CfgLookupPort:       conf.LookupPort,
 			CfgLookupPath:       conf.LookupPath,
+			CfgApiVersion:       conf.ApiVersion,
 			TestMode:            conf.TestMode,
 		}
 		handlers[i] = cl

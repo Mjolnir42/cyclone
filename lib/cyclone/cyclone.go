@@ -40,6 +40,7 @@ type Cyclone struct {
 	CfgLookupHost       string
 	CfgLookupPort       string
 	CfgLookupPath       string
+	CfgApiVersion       string
 	TestMode            bool
 	internalInput       chan *metric.Metric
 }
@@ -270,7 +271,7 @@ thrloop:
 		al := AlarmEvent{
 			Source:     fmt.Sprintf("%s / %s", thr[key].MetaTargethost, thr[key].MetaSource),
 			EventId:    thr[key].Id,
-			Version:    `1.0`,
+			Version:    cl.CfgApiVersion,
 			Sourcehost: thr[key].MetaTargethost,
 			Oncall:     thr[key].Oncall,
 			Targethost: thr[key].MetaTargethost,
