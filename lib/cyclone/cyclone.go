@@ -306,7 +306,7 @@ thrloop:
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}
 			if err := json.NewEncoder(b).Encode(aSlice); err != nil {
-				log.Printf("Cyclone[%d], ERROR json encoding alarm for %s: %s", a.EventId, err)
+				log.Printf("Cyclone[%d], ERROR json encoding alarm for %s: %s", cl.Num, a.EventId, err)
 				return
 			}
 			resp, err := http.Post(
@@ -316,7 +316,7 @@ thrloop:
 			)
 
 			if err != nil {
-				log.Printf("Cyclone[%d], ERROR sending alarm for %s: %s", a.EventId, err)
+				log.Printf("Cyclone[%d], ERROR sending alarm for %s: %s", cl.Num, a.EventId, err)
 				return
 			}
 			log.Printf("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
