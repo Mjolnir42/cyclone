@@ -321,6 +321,19 @@ thrloop:
 			}
 			log.Printf("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
 				cl.Num, a.EventId, a.Level, resp.StatusCode)
+			if resp.StatusCode >= 209 {
+				// read response body
+				bt, _ := ioutil.ReadAll(resp.Body)
+				log.Printf("Cyclone[%d], ResponseMsg(%d): %s", cl.Num, resp.StatusCode, string(bt))
+				resp.Body.Close()
+
+				// reset buffer and encode JSON again so it can be
+				// logged
+				b.Reset()
+				json.NewEncoder(b).Encode(aSlice)
+				log.Printf("Cyclone[%d], RequestJSON: %s", cl.Num, b.String())
+				return
+			}
 			// ensure http.Response.Body is consumed and closed,
 			// otherwise it leaks filehandles
 			io.Copy(ioutil.Discard, resp.Body)
