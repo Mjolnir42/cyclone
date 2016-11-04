@@ -50,7 +50,7 @@ type AlarmEvent struct {
 	EventId    string `json:"event_id"`
 	Version    string `json:"version"`
 	Sourcehost string `json:"sourcehost"`
-	Oncall     string `json:"oncall"`
+	Oncall     string `json:"on_call"`
 	Targethost string `json:"targethost"`
 	Message    string `json:"message"`
 	Level      int64  `json:"level"`
@@ -291,6 +291,9 @@ thrloop:
 				thr[key].Predicate,
 				brokenThr,
 			)
+		}
+		if al.Oncall == `` {
+			al.Oncall = `No oncall information available`
 		}
 		cl.updateEval(thr[key].Id)
 		if cl.TestMode {
