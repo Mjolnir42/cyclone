@@ -29,16 +29,28 @@ import (
 	"github.com/wvanbergen/kazoo-go"
 )
 
+var githash, shorthash, builddate, buildtime string
+
 func main() {
 	var (
 		err                 error
 		configFlag, logFlag string
 		configFile, logFile string
 		logFH               *reopen.FileWriter
+		versionFlag         bool
 	)
 	flag.StringVar(&configFlag, `config`, `cyclone.conf`, `Configuration file location`)
 	flag.StringVar(&logFlag, `log`, `cyclone.log`, `Logfile location`)
+	flag.BoolVar(&versionFlag, `version`, false, `Print version information`)
 	flag.Parse()
+
+	// only provide version information if --version was specified
+	if versionFlag {
+		fmt.Fprintf(os.Stderr, "Version        : %s-%s\n", builddate, shorthash)
+		fmt.Fprintf(os.Stderr, "Git commit hash: %s\n", githash)
+		fmt.Fprintf(os.Stderr, "UTC build time : %s\n", buildtime)
+		os.Exit(0)
+	}
 
 	// load configuration file
 	if configFile, err = filepath.Abs(configFlag); err != nil {
