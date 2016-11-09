@@ -10,14 +10,19 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/Shopify/sarama"
 	log "github.com/Sirupsen/logrus"
+	"github.com/client9/reopen"
 	"github.com/mjolnir42/cyclone/lib/cyclone"
 	"github.com/mjolnir42/cyclone/lib/metric"
 	"github.com/wvanbergen/kafka/consumergroup"
@@ -25,10 +30,36 @@ import (
 )
 
 func main() {
-	conf := CycloneConfig{}
-	if err := conf.readConfigFile(`cyclone.conf`); err != nil {
+	var (
+		err                 error
+		configFlag, logFlag string
+		configFile, logFile string
+		logFH               *reopen.FileWriter
+	)
+	flag.StringVar(&configFlag, `config`, `cyclone.conf`, `Configuration file location`)
+	flag.StringVar(&logFlag, `log`, `cyclone.log`, `Logfile location`)
+	flag.Parse()
+
+	// load configuration file
+	if configFile, err = filepath.Abs(configFlag); err != nil {
 		log.Fatalln(err)
 	}
+	if configFile, err = filepath.EvalSymlinks(configFile); err != nil {
+		log.Fatalln(err)
+	}
+	conf := CycloneConfig{}
+	if err = conf.readConfigFile(configFile); err != nil {
+		log.Fatalln(err)
+	}
+
+	// set logfile
+	if logFile, err = filepath.Abs(logFlag); err != nil {
+		log.Fatalln(`abs`, err)
+	}
+	if logFH, err = reopen.NewFileWriter(logFile); err != nil {
+		log.Fatalln(`reopen`, err)
+	}
+	log.SetOutput(logFH)
 
 	config := consumergroup.NewConfig()
 	config.Offsets.Initial = sarama.OffsetNewest
