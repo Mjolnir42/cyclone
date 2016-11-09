@@ -13,8 +13,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
-	"log"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/nahanni/go-ucl"
 )
 

@@ -10,7 +10,6 @@
 package main
 
 import (
-	"log"
 	"os"
 	"os/signal"
 	"runtime"
@@ -18,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	log "github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/cyclone/lib/cyclone"
 	"github.com/mjolnir42/cyclone/lib/metric"
 	"github.com/wvanbergen/kafka/consumergroup"

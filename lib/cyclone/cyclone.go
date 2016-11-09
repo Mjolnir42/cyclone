@@ -15,11 +15,11 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/cyclone/lib/cpu"
 	"github.com/mjolnir42/cyclone/lib/disk"
 	"github.com/mjolnir42/cyclone/lib/mem"

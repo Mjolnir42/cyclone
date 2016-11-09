@@ -13,10 +13,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
 	"time"
+
+	log "github.com/Sirupsen/logrus"
 )
 
 type Thresh struct {
