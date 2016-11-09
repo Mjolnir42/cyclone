@@ -61,6 +61,21 @@ func main() {
 	}
 	log.SetOutput(logFH)
 
+	// register signal handler for logrotate on SIGUSR2
+	sigChanLogRotate := make(chan os.Signal, 1)
+	signal.Notify(sigChanLogRotate, syscall.SIGUSR2)
+	go func(sigChan chan os.Signal, fh *reopen.FileWriter) {
+		for {
+			select {
+			case <-sigChan:
+				if fail := fh.Reopen(); fail != nil {
+					fmt.Fprintln(os.Stderr, `FATAL - Failed to rotate logfile.`, err)
+					os.Exit(2)
+				}
+			}
+		}
+	}(sigChanLogRotate, logFH)
+
 	config := consumergroup.NewConfig()
 	config.Offsets.Initial = sarama.OffsetNewest
 	config.Offsets.ProcessingTimeout = 10 * time.Second
