@@ -46,9 +46,10 @@ func main() {
 
 	// only provide version information if --version was specified
 	if versionFlag {
-		fmt.Fprintf(os.Stderr, "Version        : %s-%s\n", builddate, shorthash)
-		fmt.Fprintf(os.Stderr, "Git commit hash: %s\n", githash)
-		fmt.Fprintf(os.Stderr, "UTC build time : %s\n", buildtime)
+		fmt.Fprintln(os.Stderr, `Cyclone Metric Monitoring System`)
+		fmt.Fprintf(os.Stderr, "Version  : %s-%s\n", builddate, shorthash)
+		fmt.Fprintf(os.Stderr, "Git Hash : %s\n", githash)
+		fmt.Fprintf(os.Stderr, "Timestamp: %s\n", buildtime)
 		os.Exit(0)
 	}
 
