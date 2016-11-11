@@ -134,6 +134,7 @@ func main() {
 	}
 
 	heartbeat := time.Tick(5 * time.Second)
+	beatcount := 0
 
 	ageCutOff := time.Duration(conf.MetricsMaxAge) * time.Minute * -1
 
@@ -143,7 +144,11 @@ runloop:
 		case <-c:
 			break runloop
 		case <-heartbeat:
-			handlers[0].Input <- &metric.Metric{
+			// 32bit time_t held 68years at one tick per second. This should
+			// hold 2^32 * 5 * 68 years till overflow
+			num := beatcount % runtime.NumCPU()
+			beatcount++
+			handlers[num].Input <- &metric.Metric{
 				Path: `_internal.cyclone.heartbeat`,
 			}
 			continue runloop
