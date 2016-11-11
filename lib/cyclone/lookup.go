@@ -174,6 +174,9 @@ func (cl *Cyclone) heartbeat() {
 	if _, err := cl.Redis.HSet(`heartbeat`, `cyclone-alive`, time.Now().UTC().Format(time.RFC3339)).Result(); err != nil {
 		log.Printf("Cyclone[%d], ERROR setting heartbeat in redis: %s\n", cl.Num, err)
 	}
+	if _, err := cl.Redis.HSet(`heartbeat`, fmt.Sprintf("cyclone-alive-%d", cl.Num), time.Now().UTC().Format(time.RFC3339)).Result(); err != nil {
+		log.Printf("Cyclone[%d], ERROR setting heartbeat in redis: %s\n", cl.Num, err)
+	}
 }
 
 func (cl *Cyclone) storeUnconfigured(lookup string) {
