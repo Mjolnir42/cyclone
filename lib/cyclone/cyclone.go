@@ -29,9 +29,9 @@ import (
 
 type Cyclone struct {
 	Num                 int
-	CpuData             map[int64]cpu.Cpu
+	CPUData             map[int64]cpu.CPU
 	MemData             map[int64]mem.Mem
-	CtxData             map[int64]cpu.Ctx
+	CTXData             map[int64]cpu.CTX
 	DskData             map[int64]map[string]disk.Disk
 	Input               chan *metric.Metric
 	Redis               *redis.Client
@@ -42,7 +42,7 @@ type Cyclone struct {
 	CfgLookupHost       string
 	CfgLookupPort       string
 	CfgLookupPath       string
-	CfgApiVersion       string
+	CfgAPIVersion       string
 	TestMode            bool
 	internalInput       chan *metric.Metric
 	logger              *logrus.Logger
@@ -50,7 +50,7 @@ type Cyclone struct {
 
 type AlarmEvent struct {
 	Source     string `json:"source"`
-	EventId    string `json:"event_id"`
+	EventID    string `json:"event_id"`
 	Version    string `json:"version"`
 	Sourcehost string `json:"sourcehost"`
 	Oncall     string `json:"on_call"`
@@ -68,9 +68,9 @@ func (cl *Cyclone) SetLog(l *logrus.Logger) {
 }
 
 func (cl *Cyclone) Run() {
-	cl.CpuData = make(map[int64]cpu.Cpu)
+	cl.CPUData = make(map[int64]cpu.CPU)
 	cl.MemData = make(map[int64]mem.Mem)
-	cl.CtxData = make(map[int64]cpu.Ctx)
+	cl.CTXData = make(map[int64]cpu.CTX)
 	cl.DskData = make(map[int64]map[string]disk.Disk)
 	cl.internalInput = make(chan *metric.Metric, 32)
 	cl.Redis = redis.NewClient(&redis.Options{
@@ -92,7 +92,7 @@ func (cl *Cyclone) Run() {
 				"Cyclone[%d], Received metric %s from %d",
 				cl.Num,
 				m.Path,
-				m.AssetId,
+				m.AssetID,
 			)
 			cl.eval(m)
 		case m := <-cl.Input:
@@ -100,7 +100,7 @@ func (cl *Cyclone) Run() {
 				"Cyclone[%d], Received metric %s from %d",
 				cl.Num,
 				m.Path,
-				m.AssetId,
+				m.AssetID,
 			)
 			cl.eval(m)
 		}
@@ -114,13 +114,13 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		cl.heartbeat()
 		return
 	case `/sys/cpu/ctx`:
-		ctx := cpu.Ctx{}
-		id := m.AssetId
-		if _, ok := cl.CtxData[id]; ok {
-			ctx = cl.CtxData[id]
+		ctx := cpu.CTX{}
+		id := m.AssetID
+		if _, ok := cl.CTXData[id]; ok {
+			ctx = cl.CTXData[id]
 		}
 		m = ctx.Update(m)
-		cl.CtxData[id] = ctx
+		cl.CTXData[id] = ctx
 
 	case `/sys/cpu/count/idle`:
 		fallthrough
@@ -135,14 +135,14 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 	case `/sys/cpu/count/system`:
 		fallthrough
 	case `/sys/cpu/count/user`:
-		cu := cpu.Cpu{}
-		id := m.AssetId
-		if _, ok := cl.CpuData[id]; ok {
-			cu = cl.CpuData[id]
+		cu := cpu.CPU{}
+		id := m.AssetID
+		if _, ok := cl.CPUData[id]; ok {
+			cu = cl.CPUData[id]
 		}
 		cu.Update(m)
 		m = cu.Calculate()
-		cl.CpuData[id] = cu
+		cl.CPUData[id] = cu
 
 	case `/sys/memory/active`:
 		fallthrough
@@ -160,7 +160,7 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		fallthrough
 	case `/sys/memory/total`:
 		mm := mem.Mem{}
-		id := m.AssetId
+		id := m.AssetID
 		if _, ok := cl.MemData[id]; ok {
 			mm = cl.MemData[id]
 		}
@@ -180,7 +180,7 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 			break
 		}
 		d := disk.Disk{}
-		id := m.AssetId
+		id := m.AssetID
 		mpt := m.Tags[0]
 		if cl.DskData[id] == nil {
 			cl.DskData[id] = make(map[string]disk.Disk)
@@ -213,10 +213,10 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		return
 	}
 	if len(thr) == 0 {
-		cl.logger.Printf("Cyclone[%d], No thresholds configured for %s from %d", cl.Num, m.Path, m.AssetId)
+		cl.logger.Printf("Cyclone[%d], No thresholds configured for %s from %d", cl.Num, m.Path, m.AssetID)
 		return
 	}
-	cl.logger.Printf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", cl.Num, m.Path, m.AssetId, lid)
+	cl.logger.Printf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", cl.Num, m.Path, m.AssetID, lid)
 
 	internalMetric := false
 	switch m.Path {
@@ -231,23 +231,23 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 	evaluations := 0
 
 thrloop:
-	for key, _ := range thr {
-		var alarmLevel string = "0"
-		var brokenThr int64 = 0
+	for key := range thr {
+		var alarmLevel = "0"
+		var brokenThr int64
 		dispatchAlarm := false
 		broken := false
 		fVal := ``
 		if internalMetric {
 			dispatchAlarm = true
 		}
-		if len(m.Tags) > 0 && m.Tags[0] == thr[key].Id {
+		if len(m.Tags) > 0 && m.Tags[0] == thr[key].ID {
 			dispatchAlarm = true
 		}
 		if !dispatchAlarm {
 			continue thrloop
 		}
 		cl.logger.Printf("Cyclone[%d], Evaluating metric %s from %d against config %s",
-			cl.Num, m.Path, m.AssetId, thr[key].Id)
+			cl.Num, m.Path, m.AssetID, thr[key].ID)
 		evaluations++
 
 	lvlloop:
@@ -256,7 +256,7 @@ thrloop:
 			if !ok {
 				continue
 			}
-			cl.logger.Printf("Cyclone[%d], Checking %s alarmlevel %s", cl.Num, thr[key].Id, lvl)
+			cl.logger.Printf("Cyclone[%d], Checking %s alarmlevel %s", cl.Num, thr[key].ID, lvl)
 			switch m.Type {
 			case `integer`:
 				fallthrough
@@ -277,8 +277,8 @@ thrloop:
 		}
 		al := AlarmEvent{
 			Source:     fmt.Sprintf("%s / %s", thr[key].MetaTargethost, thr[key].MetaSource),
-			EventId:    thr[key].Id,
-			Version:    cl.CfgApiVersion,
+			EventID:    thr[key].ID,
+			Version:    cl.CfgAPIVersion,
 			Sourcehost: thr[key].MetaTargethost,
 			Oncall:     thr[key].Oncall,
 			Targethost: thr[key].MetaTargethost,
@@ -302,7 +302,7 @@ thrloop:
 		if al.Oncall == `` {
 			al.Oncall = `No oncall information available`
 		}
-		cl.updateEval(thr[key].Id)
+		cl.updateEval(thr[key].ID)
 		if cl.TestMode {
 			// do not send out alarms in testmode
 			continue thrloop
@@ -311,7 +311,7 @@ thrloop:
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}
 			if err := json.NewEncoder(b).Encode(aSlice); err != nil {
-				cl.logger.Printf("Cyclone[%d], ERROR json encoding alarm for %s: %s", cl.Num, a.EventId, err)
+				cl.logger.Printf("Cyclone[%d], ERROR json encoding alarm for %s: %s", cl.Num, a.EventID, err)
 				return
 			}
 			resp, err := http.Post(
@@ -321,11 +321,11 @@ thrloop:
 			)
 
 			if err != nil {
-				cl.logger.Printf("Cyclone[%d], ERROR sending alarm for %s: %s", cl.Num, a.EventId, err)
+				cl.logger.Printf("Cyclone[%d], ERROR sending alarm for %s: %s", cl.Num, a.EventID, err)
 				return
 			}
 			cl.logger.Printf("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
-				cl.Num, a.EventId, a.Level, resp.StatusCode)
+				cl.Num, a.EventID, a.Level, resp.StatusCode)
 			if resp.StatusCode >= 209 {
 				// read response body
 				bt, _ := ioutil.ReadAll(resp.Body)
@@ -346,7 +346,7 @@ thrloop:
 		}(al)
 	}
 	if evaluations == 0 {
-		cl.logger.Printf("Cyclone[%d], metric %s(%d) matched no configurations", cl.Num, m.Path, m.AssetId)
+		cl.logger.Printf("Cyclone[%d], metric %s(%d) matched no configurations", cl.Num, m.Path, m.AssetID)
 	}
 }
 

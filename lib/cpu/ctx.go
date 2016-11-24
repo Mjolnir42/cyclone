@@ -14,8 +14,8 @@ import (
 	"github.com/mjolnir42/cyclone/lib/metric"
 )
 
-type Ctx struct {
-	AssetId   int64
+type CTX struct {
+	AssetID   int64
 	CurrValue int64
 	NextValue int64
 	Cps       float64
@@ -23,7 +23,7 @@ type Ctx struct {
 	NextTime  time.Time
 }
 
-func (c *Ctx) Update(m *metric.Metric) *metric.Metric {
+func (c *CTX) Update(m *metric.Metric) *metric.Metric {
 	// ignore metrics for other paths
 	switch m.Path {
 	case `/sys/cpu/ctx`:
@@ -31,10 +31,10 @@ func (c *Ctx) Update(m *metric.Metric) *metric.Metric {
 		return nil
 	}
 
-	if c.AssetId == 0 {
-		c.AssetId = m.AssetId
+	if c.AssetID == 0 {
+		c.AssetID = m.AssetID
 	}
-	if c.AssetId != m.AssetId {
+	if c.AssetID != m.AssetID {
 		return nil
 	}
 
@@ -55,7 +55,7 @@ func (c *Ctx) Update(m *metric.Metric) *metric.Metric {
 	return c.calculate()
 }
 
-func (c *Ctx) calculate() *metric.Metric {
+func (c *CTX) calculate() *metric.Metric {
 	ctx := c.NextValue - c.CurrValue
 	delta := c.NextTime.Sub(c.CurrTime).Seconds()
 
@@ -66,21 +66,21 @@ func (c *Ctx) calculate() *metric.Metric {
 	return c.emitMetric()
 }
 
-func (c *Ctx) nextToCurrent() {
+func (c *CTX) nextToCurrent() {
 	c.CurrValue = c.NextValue
 	c.CurrTime = c.NextTime
 	c.NextValue = 0
 	c.NextTime = time.Time{}
 }
 
-func (c *Ctx) emitMetric() *metric.Metric {
+func (c *CTX) emitMetric() *metric.Metric {
 	return &metric.Metric{
-		AssetId: c.AssetId,
+		AssetID: c.AssetID,
 		Path:    `cpu.ctx.per.second`,
 		TS:      c.CurrTime,
 		Type:    `real`,
 		Unit:    `#`,
-		Val: metric.MetricValue{
+		Val: metric.Value{
 			FlpVal: c.Cps,
 		},
 	}

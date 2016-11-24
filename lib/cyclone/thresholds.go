@@ -13,13 +13,13 @@ type ThresholdConfig struct {
 }
 
 type ConfigurationList struct {
-	ConfigurationItemIdList []string `json:"configuration_item_id_list"`
+	ConfigurationItemIDList []string `json:"configuration_item_id_list"`
 }
 
 type ConfigurationItem struct {
-	ConfigurationItemId string                   `json:"configuration_item_id"`
+	ConfigurationItemID string                   `json:"configuration_item_id"`
 	Metric              string                   `json:"metric"`
-	HostId              uint64                   `json:"host_id,string"`
+	HostID              uint64                   `json:"host_id,string"`
 	Tags                []string                 `json:"tags,omitempty"`
 	Oncall              string                   `json:"oncall"`
 	Interval            uint64                   `json:"interval"`

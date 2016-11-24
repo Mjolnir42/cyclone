@@ -33,7 +33,7 @@ type CycloneConfig struct {
 	LookupPort       string `json:"lookup.port"`
 	LookupPath       string `json:"lookup.path"`
 	TestMode         bool   `json:"testmode,string"`
-	ApiVersion       string `json:"api.version"`
+	APIVersion       string `json:"api.version"`
 }
 
 func (c *CycloneConfig) readConfigFile(fname string) error {
@@ -53,11 +53,11 @@ func (c *CycloneConfig) readConfigFile(fname string) error {
 	}
 
 	// take detour via JSON to load UCL into struct
-	uclJson, err := json.Marshal(uclData)
+	uclJSON, err := json.Marshal(uclData)
 	if err != nil {
 		log.Fatal(err)
 	}
-	return json.Unmarshal([]byte(uclJson), &c)
+	return json.Unmarshal([]byte(uclJSON), &c)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix

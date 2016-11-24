@@ -15,10 +15,10 @@ import (
 	"github.com/mjolnir42/cyclone/lib/metric"
 )
 
-type Cpu struct {
-	AssetId  int64
-	Curr     CpuCounter
-	Next     CpuCounter
+type CPU struct {
+	AssetID  int64
+	Curr     Counter
+	Next     Counter
 	CurrTime time.Time
 	NextTime time.Time
 	Idle     int64
@@ -27,7 +27,7 @@ type Cpu struct {
 	Usage    float64
 }
 
-type CpuCounter struct {
+type Counter struct {
 	SetIdle    bool
 	SetIoWait  bool
 	SetIrq     bool
@@ -44,12 +44,12 @@ type CpuCounter struct {
 	User       int64
 }
 
-func (c *CpuCounter) valid() bool {
+func (c *Counter) valid() bool {
 	return c.SetIdle && c.SetIoWait && c.SetIrq && c.SetNice &&
 		c.SetSoftIrq && c.SetSystem && c.SetUser
 }
 
-func (c *Cpu) Update(m *metric.Metric) {
+func (c *CPU) Update(m *metric.Metric) {
 	// ignore metrics for other paths
 	switch m.Path {
 	case `/sys/cpu/count/idle`:
@@ -63,10 +63,10 @@ func (c *Cpu) Update(m *metric.Metric) {
 		return
 	}
 
-	if c.AssetId == 0 {
-		c.AssetId = m.AssetId
+	if c.AssetID == 0 {
+		c.AssetID = m.AssetID
 	}
-	if c.AssetId != m.AssetId {
+	if c.AssetID != m.AssetID {
 		return
 	}
 
@@ -122,12 +122,12 @@ processing:
 	// abandon current next and start new one
 	if c.NextTime.Before(m.TS) {
 		c.NextTime = time.Time{}
-		c.Next = CpuCounter{}
+		c.Next = Counter{}
 		goto processing
 	}
 }
 
-func (c *Cpu) Calculate() *metric.Metric {
+func (c *CPU) Calculate() *metric.Metric {
 	if c.NextTime.IsZero() {
 		return nil
 	}
@@ -166,22 +166,22 @@ func (c *Cpu) Calculate() *metric.Metric {
 	return c.emitMetric()
 }
 
-func (c *Cpu) nextToCurrent() {
+func (c *CPU) nextToCurrent() {
 	c.CurrTime = c.NextTime
 	c.NextTime = time.Time{}
 
 	c.Curr = c.Next
-	c.Next = CpuCounter{}
+	c.Next = Counter{}
 }
 
-func (c *Cpu) emitMetric() *metric.Metric {
+func (c *CPU) emitMetric() *metric.Metric {
 	return &metric.Metric{
-		AssetId: c.AssetId,
+		AssetID: c.AssetID,
 		Path:    `cpu.usage.percent`,
 		TS:      c.CurrTime,
 		Type:    `real`,
 		Unit:    `%`,
-		Val: metric.MetricValue{
+		Val: metric.Value{
 			FlpVal: c.Usage,
 		},
 	}

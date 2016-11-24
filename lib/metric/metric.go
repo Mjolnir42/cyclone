@@ -18,17 +18,17 @@ import (
 )
 
 type Metric struct {
-	AssetId int64
+	AssetID int64
 	Path    string
 	TS      time.Time
 	Type    string
 	Unit    string
-	Val     MetricValue
+	Val     Value
 	Tags    []string
 	Labels  map[string]string
 }
 
-type MetricValue struct {
+type Value struct {
 	IntVal int64
 	StrVal string
 	FlpVal float64
@@ -43,7 +43,7 @@ func FromBytes(buf []byte) (*Metric, error) {
 
 	// build metric
 	m := Metric{
-		AssetId: int64(raw[0].(float64)),
+		AssetID: int64(raw[0].(float64)),
 		Path:    raw[1].(string),
 		Type:    raw[3].(string),
 		Unit:    raw[4].(string),
@@ -102,7 +102,7 @@ func (m *Metric) Value() interface{} {
 }
 
 func (m *Metric) LookupID() string {
-	a := strconv.FormatInt(m.AssetId, 10)
+	a := strconv.FormatInt(m.AssetID, 10)
 	h := sha256.New()
 	h.Write([]byte(a))
 	h.Write([]byte(m.Path))

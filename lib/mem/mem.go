@@ -18,15 +18,15 @@ import (
 )
 
 type Mem struct {
-	AssetId  int64
-	Curr     MemDistribution
-	Next     MemDistribution
+	AssetID  int64
+	Curr     Distribution
+	Next     Distribution
 	CurrTime time.Time
 	NextTime time.Time
 	Usage    float64
 }
 
-type MemDistribution struct {
+type Distribution struct {
 	SetTotal     bool
 	SetActive    bool
 	SetBuffers   bool
@@ -45,7 +45,7 @@ type MemDistribution struct {
 	SwapTotal    int64
 }
 
-func (m *MemDistribution) valid() bool {
+func (m *Distribution) valid() bool {
 	return m.SetTotal && m.SetActive && m.SetBuffers && m.SetCached &&
 		m.SetFree && m.SetInActive && m.SetSwapFree && m.SetSwapTotal
 }
@@ -65,10 +65,10 @@ func (m *Mem) Update(mtr *metric.Metric) {
 		return
 	}
 
-	if m.AssetId == 0 {
-		m.AssetId = mtr.AssetId
+	if m.AssetID == 0 {
+		m.AssetID = mtr.AssetID
 	}
-	if m.AssetId != mtr.AssetId {
+	if m.AssetID != mtr.AssetID {
 		return
 	}
 
@@ -115,7 +115,7 @@ processing:
 	// abandon current next and start new one
 	if m.NextTime.Before(mtr.TS) {
 		m.NextTime = time.Time{}
-		m.Next = MemDistribution{}
+		m.Next = Distribution{}
 		goto processing
 	}
 }
@@ -145,17 +145,17 @@ func (m *Mem) nextToCurrent() {
 	m.NextTime = time.Time{}
 
 	m.Curr = m.Next
-	m.Next = MemDistribution{}
+	m.Next = Distribution{}
 }
 
 func (m *Mem) emitMetric() *metric.Metric {
 	return &metric.Metric{
-		AssetId: m.AssetId,
+		AssetID: m.AssetID,
 		Path:    `memory.usage.percent`,
 		TS:      m.CurrTime,
 		Type:    `real`,
 		Unit:    `%`,
-		Val: metric.MetricValue{
+		Val: metric.Value{
 			FlpVal: m.Usage,
 		},
 	}

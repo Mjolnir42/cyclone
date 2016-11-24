@@ -19,9 +19,9 @@ import (
 )
 
 type Disk struct {
-	AssetId    int64
-	Curr       DiskCounter
-	Next       DiskCounter
+	AssetID    int64
+	Curr       Counter
+	Next       Counter
 	CurrTime   time.Time
 	NextTime   time.Time
 	Mountpoint string
@@ -31,7 +31,7 @@ type Disk struct {
 	BytesFree  int64
 }
 
-type DiskCounter struct {
+type Counter struct {
 	SetBlkTotal bool
 	SetBlkUsed  bool
 	SetBlkRead  bool
@@ -42,7 +42,7 @@ type DiskCounter struct {
 	BlkWrite    int64
 }
 
-func (d *DiskCounter) valid() bool {
+func (d *Counter) valid() bool {
 	return d.SetBlkTotal && d.SetBlkUsed && d.SetBlkRead && d.SetBlkWrite
 }
 
@@ -57,10 +57,10 @@ func (d *Disk) Update(m *metric.Metric) {
 		return
 	}
 
-	if d.AssetId == 0 {
-		d.AssetId = m.AssetId
+	if d.AssetID == 0 {
+		d.AssetID = m.AssetID
 	}
-	if d.AssetId != m.AssetId {
+	if d.AssetID != m.AssetID {
 		return
 	}
 
@@ -107,7 +107,7 @@ processing:
 	// abandon current next and start new one
 	if d.NextTime.Before(m.TS) {
 		d.NextTime = time.Time{}
-		d.Next = DiskCounter{}
+		d.Next = Counter{}
 		goto processing
 	}
 }
@@ -163,48 +163,48 @@ func (d *Disk) nextToCurrent() {
 	d.NextTime = time.Time{}
 
 	d.Curr = d.Next
-	d.Next = DiskCounter{}
+	d.Next = Counter{}
 }
 
 func (d *Disk) emitMetric() []*metric.Metric {
 	return []*metric.Metric{
 		&metric.Metric{
-			AssetId: d.AssetId,
+			AssetID: d.AssetID,
 			Path:    fmt.Sprintf("disk.write.per.second:%s", d.Mountpoint),
 			TS:      d.CurrTime,
 			Type:    `real`,
 			Unit:    `B`,
-			Val: metric.MetricValue{
+			Val: metric.Value{
 				FlpVal: d.WriteBps,
 			},
 		},
 		&metric.Metric{
-			AssetId: d.AssetId,
+			AssetID: d.AssetID,
 			Path:    fmt.Sprintf("disk.read.per.second:%s", d.Mountpoint),
 			TS:      d.CurrTime,
 			Type:    `real`,
 			Unit:    `B`,
-			Val: metric.MetricValue{
+			Val: metric.Value{
 				FlpVal: d.ReadBps,
 			},
 		},
 		&metric.Metric{
-			AssetId: d.AssetId,
+			AssetID: d.AssetID,
 			Path:    fmt.Sprintf("disk.free:%s", d.Mountpoint),
 			TS:      d.CurrTime,
 			Type:    `integer`,
 			Unit:    `B`,
-			Val: metric.MetricValue{
+			Val: metric.Value{
 				IntVal: d.BytesFree,
 			},
 		},
 		&metric.Metric{
-			AssetId: d.AssetId,
+			AssetID: d.AssetID,
 			Path:    fmt.Sprintf("disk.usage.percent:%s", d.Mountpoint),
 			TS:      d.CurrTime,
 			Type:    `real`,
 			Unit:    `%`,
-			Val: metric.MetricValue{
+			Val: metric.Value{
 				FlpVal: d.Usage,
 			},
 		},

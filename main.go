@@ -136,7 +136,7 @@ func main() {
 			CfgLookupHost:       conf.LookupHost,
 			CfgLookupPort:       conf.LookupPort,
 			CfgLookupPath:       conf.LookupPath,
-			CfgApiVersion:       conf.ApiVersion,
+			CfgAPIVersion:       conf.APIVersion,
 			TestMode:            conf.TestMode,
 		}
 		cl.SetLog(logger)
@@ -173,7 +173,7 @@ runloop:
 			logger.Printf("MAIN, Received topic:%s/partition:%d/offset:%d",
 				message.Topic, message.Partition, message.Offset)
 
-			eventCount += 1
+			eventCount++
 			if offsets[message.Topic][message.Partition] != 0 &&
 				offsets[message.Topic][message.Partition] != message.Offset-1 {
 				logger.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n",
@@ -272,7 +272,7 @@ runloop:
 				continue
 			}
 
-			handlers[int(m.AssetId)%runtime.NumCPU()].Input <- m
+			handlers[int(m.AssetID)%runtime.NumCPU()].Input <- m
 
 			offsets[message.Topic][message.Partition] = message.Offset
 			consumer.CommitUpto(message)
