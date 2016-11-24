@@ -19,7 +19,7 @@ import (
 	"strconv"
 	"time"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/cyclone/lib/cpu"
 	"github.com/mjolnir42/cyclone/lib/disk"
 	"github.com/mjolnir42/cyclone/lib/mem"
@@ -45,6 +45,7 @@ type Cyclone struct {
 	CfgApiVersion       string
 	TestMode            bool
 	internalInput       chan *metric.Metric
+	logger              *logrus.Logger
 }
 
 type AlarmEvent struct {
@@ -62,6 +63,10 @@ type AlarmEvent struct {
 	Team       string `json:"team"`
 }
 
+func (cl *Cyclone) SetLog(l *logrus.Logger) {
+	cl.logger = l
+}
+
 func (cl *Cyclone) Run() {
 	cl.CpuData = make(map[int64]cpu.Cpu)
 	cl.MemData = make(map[int64]mem.Mem)
@@ -75,15 +80,15 @@ func (cl *Cyclone) Run() {
 	})
 	defer cl.Redis.Close()
 	if _, err := cl.Redis.Ping().Result(); err != nil {
-		log.Fatalln(err)
+		cl.logger.Fatalln(err)
 	}
 
-	log.Printf("Cyclone[%d], Handler ready for input", cl.Num)
+	cl.logger.Printf("Cyclone[%d], Handler ready for input", cl.Num)
 
 	for {
 		select {
 		case m := <-cl.internalInput:
-			log.Printf(
+			cl.logger.Printf(
 				"Cyclone[%d], Received metric %s from %d",
 				cl.Num,
 				m.Path,
@@ -91,7 +96,7 @@ func (cl *Cyclone) Run() {
 			)
 			cl.eval(m)
 		case m := <-cl.Input:
-			log.Printf(
+			cl.logger.Printf(
 				"Cyclone[%d], Received metric %s from %d",
 				cl.Num,
 				m.Path,
@@ -198,20 +203,20 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		m = nil
 	}
 	if m == nil {
-		log.Printf("Cyclone[%d], Metric has been consumed\n", cl.Num)
+		cl.logger.Printf("Cyclone[%d], Metric has been consumed\n", cl.Num)
 		return
 	}
 	lid := m.LookupID()
 	thr := cl.Lookup(lid)
 	if thr == nil {
-		log.Printf("Cyclone[%d], ERROR fetching threshold data. Lookup service available?", cl.Num)
+		cl.logger.Printf("Cyclone[%d], ERROR fetching threshold data. Lookup service available?", cl.Num)
 		return
 	}
 	if len(thr) == 0 {
-		log.Printf("Cyclone[%d], No thresholds configured for %s from %d", cl.Num, m.Path, m.AssetId)
+		cl.logger.Printf("Cyclone[%d], No thresholds configured for %s from %d", cl.Num, m.Path, m.AssetId)
 		return
 	}
-	log.Printf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", cl.Num, m.Path, m.AssetId, lid)
+	cl.logger.Printf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", cl.Num, m.Path, m.AssetId, lid)
 
 	internalMetric := false
 	switch m.Path {
@@ -241,7 +246,7 @@ thrloop:
 		if !dispatchAlarm {
 			continue thrloop
 		}
-		log.Printf("Cyclone[%d], Evaluating metric %s from %d against config %s",
+		cl.logger.Printf("Cyclone[%d], Evaluating metric %s from %d against config %s",
 			cl.Num, m.Path, m.AssetId, thr[key].Id)
 		evaluations++
 
@@ -251,16 +256,16 @@ thrloop:
 			if !ok {
 				continue
 			}
-			log.Printf("Cyclone[%d], Checking %s alarmlevel %s", cl.Num, thr[key].Id, lvl)
+			cl.logger.Printf("Cyclone[%d], Checking %s alarmlevel %s", cl.Num, thr[key].Id, lvl)
 			switch m.Type {
 			case `integer`:
 				fallthrough
 			case `long`:
-				broken, fVal = CmpInt(thr[key].Predicate,
+				broken, fVal = cl.CmpInt(thr[key].Predicate,
 					m.Value().(int64),
 					thrval)
 			case `real`:
-				broken, fVal = CmpFlp(thr[key].Predicate,
+				broken, fVal = cl.CmpFlp(thr[key].Predicate,
 					m.Value().(float64),
 					thrval)
 			}
@@ -306,7 +311,7 @@ thrloop:
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}
 			if err := json.NewEncoder(b).Encode(aSlice); err != nil {
-				log.Printf("Cyclone[%d], ERROR json encoding alarm for %s: %s", cl.Num, a.EventId, err)
+				cl.logger.Printf("Cyclone[%d], ERROR json encoding alarm for %s: %s", cl.Num, a.EventId, err)
 				return
 			}
 			resp, err := http.Post(
@@ -316,22 +321,22 @@ thrloop:
 			)
 
 			if err != nil {
-				log.Printf("Cyclone[%d], ERROR sending alarm for %s: %s", cl.Num, a.EventId, err)
+				cl.logger.Printf("Cyclone[%d], ERROR sending alarm for %s: %s", cl.Num, a.EventId, err)
 				return
 			}
-			log.Printf("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
+			cl.logger.Printf("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
 				cl.Num, a.EventId, a.Level, resp.StatusCode)
 			if resp.StatusCode >= 209 {
 				// read response body
 				bt, _ := ioutil.ReadAll(resp.Body)
-				log.Printf("Cyclone[%d], ResponseMsg(%d): %s", cl.Num, resp.StatusCode, string(bt))
+				cl.logger.Printf("Cyclone[%d], ResponseMsg(%d): %s", cl.Num, resp.StatusCode, string(bt))
 				resp.Body.Close()
 
 				// reset buffer and encode JSON again so it can be
 				// logged
 				b.Reset()
 				json.NewEncoder(b).Encode(aSlice)
-				log.Printf("Cyclone[%d], RequestJSON: %s", cl.Num, b.String())
+				cl.logger.Printf("Cyclone[%d], RequestJSON: %s", cl.Num, b.String())
 				return
 			}
 			// ensure http.Response.Body is consumed and closed,
@@ -341,11 +346,11 @@ thrloop:
 		}(al)
 	}
 	if evaluations == 0 {
-		log.Printf("Cyclone[%d], metric %s(%d) matched no configurations", cl.Num, m.Path, m.AssetId)
+		cl.logger.Printf("Cyclone[%d], metric %s(%d) matched no configurations", cl.Num, m.Path, m.AssetId)
 	}
 }
 
-func CmpInt(pred string, value, threshold int64) (bool, string) {
+func (cl *Cyclone) CmpInt(pred string, value, threshold int64) (bool, string) {
 	fVal := fmt.Sprintf("%d", value)
 	switch pred {
 	case `<`:
@@ -361,12 +366,12 @@ func CmpInt(pred string, value, threshold int64) (bool, string) {
 	case `!=`:
 		return value != threshold, fVal
 	default:
-		log.Printf("Cyclone[], ERROR unknown predicate: %s", pred)
+		cl.logger.Printf("Cyclone[], ERROR unknown predicate: %s", pred)
 		return false, ``
 	}
 }
 
-func CmpFlp(pred string, value float64, threshold int64) (bool, string) {
+func (cl *Cyclone) CmpFlp(pred string, value float64, threshold int64) (bool, string) {
 	fthreshold := float64(threshold)
 	fVal := fmt.Sprintf("%.3f", value)
 	switch pred {
@@ -383,7 +388,7 @@ func CmpFlp(pred string, value float64, threshold int64) (bool, string) {
 	case `!=`:
 		return value != fthreshold, fVal
 	default:
-		log.Printf("Cyclone[], ERROR unknown predicate: %s", pred)
+		cl.logger.Printf("Cyclone[], ERROR unknown predicate: %s", pred)
 		return false, ``
 	}
 }

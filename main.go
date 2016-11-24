@@ -12,6 +12,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -21,7 +23,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/cyclone/lib/cyclone"
 	"github.com/mjolnir42/cyclone/lib/metric"
@@ -72,7 +74,15 @@ func main() {
 	if logFH, err = reopen.NewFileWriter(logFile); err != nil {
 		log.Fatalln(`reopen`, err)
 	}
-	log.SetOutput(logFH)
+	logger := logrus.New()
+	logger.Formatter = &logrus.TextFormatter{
+		DisableColors: true,
+		FullTimestamp: true,
+	}
+	logger.Out = logFH
+
+	// redirect go default logger to /dev/null
+	log.SetOutput(ioutil.Discard)
 
 	// register signal handler for logrotate on SIGUSR2
 	sigChanLogRotate := make(chan os.Signal, 1)
@@ -97,13 +107,13 @@ func main() {
 	var zkNodes []string
 
 	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(conf.Zookeeper)
-	log.Println(`Using ZK chroot: `, config.Zookeeper.Chroot)
+	logger.Println(`Using ZK chroot: `, config.Zookeeper.Chroot)
 
 	topic := strings.Split(conf.Topics, `,`)
 
 	consumer, err := consumergroup.JoinConsumerGroup(conf.ConsumerGroup, topic, zkNodes, config)
 	if err != nil {
-		log.Fatalln(err)
+		logger.Fatalln(err)
 	}
 
 	c := make(chan os.Signal, 1)
@@ -114,7 +124,7 @@ func main() {
 	handlers := make(map[int]cyclone.Cyclone)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
-		log.Printf("MAIN, Starting cyclone handler %d", i)
+		logger.Printf("MAIN, Starting cyclone handler %d", i)
 		cChan := make(chan *metric.Metric)
 		cl := cyclone.Cyclone{
 			Num:                 i,
@@ -129,6 +139,7 @@ func main() {
 			CfgApiVersion:       conf.ApiVersion,
 			TestMode:            conf.TestMode,
 		}
+		cl.SetLog(logger)
 		handlers[i] = cl
 		go cl.Run()
 	}
@@ -153,19 +164,19 @@ runloop:
 			}
 			continue runloop
 		case e := <-consumer.Errors():
-			log.Println(e)
+			logger.Println(e)
 		case message := <-consumer.Messages():
 			if offsets[message.Topic] == nil {
 				offsets[message.Topic] = make(map[int32]int64)
 			}
 
-			log.Printf("MAIN, Received topic:%s/partition:%d/offset:%d",
+			logger.Printf("MAIN, Received topic:%s/partition:%d/offset:%d",
 				message.Topic, message.Partition, message.Offset)
 
 			eventCount += 1
 			if offsets[message.Topic][message.Partition] != 0 &&
 				offsets[message.Topic][message.Partition] != message.Offset-1 {
-				log.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n",
+				logger.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n",
 					message.Topic, message.Partition,
 					offsets[message.Topic][message.Partition]+1, message.Offset,
 					message.Offset-offsets[message.Topic][message.Partition]+1,
@@ -174,7 +185,7 @@ runloop:
 
 			m, err := metric.FromBytes(message.Value)
 			if err != nil {
-				log.Printf("MAIN ERROR, Decoding metric data: %s\n", err)
+				logger.Printf("MAIN ERROR, Decoding metric data: %s\n", err)
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -246,7 +257,7 @@ runloop:
 				m = nil
 			}
 			if m == nil {
-				log.Println(`MAIN, Ignoring received metric`)
+				logger.Println(`MAIN, Ignoring received metric`)
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -255,7 +266,7 @@ runloop:
 			// ignore metrics that are simply too old for useful
 			// alerting
 			if time.Now().UTC().Add(ageCutOff).After(m.TS.UTC()) {
-				log.Printf("MAIN ERROR, Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
+				logger.Printf("MAIN ERROR, Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -271,8 +282,8 @@ runloop:
 		sarama.Logger.Println("Error closing the consumer", err)
 	}
 
-	log.Printf("Processed %d events.", eventCount)
-	log.Printf("%+v", offsets)
+	logger.Printf("Processed %d events.", eventCount)
+	logger.Printf("%+v", offsets)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix
