@@ -12,10 +12,6 @@ type ThresholdConfig struct {
 	Configurations []ConfigurationItem `json:"configurations"`
 }
 
-type ConfigurationList struct {
-	ConfigurationItemIDList []string `json:"configuration_item_id_list"`
-}
-
 type ConfigurationItem struct {
 	ConfigurationItemID string                   `json:"configuration_item_id"`
 	Metric              string                   `json:"metric"`
