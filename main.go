@@ -99,6 +99,10 @@ func main() {
 		}
 	}(sigChanLogRotate, logFH)
 
+	// register signal handler for shutdown on SIGINT/SIGTERM
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
 	config := consumergroup.NewConfig()
 	config.Offsets.Initial = sarama.OffsetNewest
 	config.Offsets.ProcessingTimeout = 10 * time.Second
@@ -115,9 +119,6 @@ func main() {
 	if err != nil {
 		logger.Fatalln(err)
 	}
-
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
 
 	eventCount := 0
 	offsets := make(map[string]map[int32]int64)
@@ -153,6 +154,7 @@ runloop:
 	for {
 		select {
 		case <-c:
+			// SIGINT/SIGTERM
 			break runloop
 		case <-heartbeat:
 			// 32bit time_t held 68years at one tick per second. This should
@@ -282,6 +284,8 @@ runloop:
 		sarama.Logger.Println("Error closing the consumer", err)
 	}
 
+	// give handler routines a chance to finish their work
+	time.Sleep(2 * time.Second)
 	logger.Printf("Processed %d events.", eventCount)
 	logger.Printf("%+v", offsets)
 }
