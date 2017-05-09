@@ -122,7 +122,6 @@ func (d *Disk) Calculate() []*metric.Metric {
 
 	usage := big.NewRat(0, 1).SetFrac64(d.Next.BlkUsed, d.Next.BlkTotal)
 	usage.Mul(usage, big.NewRat(100, 1))
-	usage.Sub(big.NewRat(100, 1), usage)
 	floatUsage, _ := strconv.ParseFloat(usage.FloatString(2), 64)
 	floatUsage = round(floatUsage, .5, 2)
 
