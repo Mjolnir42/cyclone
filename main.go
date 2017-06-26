@@ -1,5 +1,5 @@
 /*-
- * Copyright © 2016, Jörg Pernfuß <code.jpe@gmail.com>
+ * Copyright © 2016,2017 Jörg Pernfuß <code.jpe@gmail.com>
  * Copyright © 2016, 1&1 Internet SE
  * All rights reserved.
  *
@@ -27,22 +27,32 @@ import (
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/cyclone/lib/cyclone"
 	"github.com/mjolnir42/cyclone/lib/metric"
+	"github.com/mjolnir42/erebos"
 	"github.com/wvanbergen/kafka/consumergroup"
 	"github.com/wvanbergen/kazoo-go"
 )
 
 var githash, shorthash, builddate, buildtime string
 
+func init() {
+	// Discard logspam from Zookeeper library
+	erebos.DisableZKLogger()
+
+	// set standard logger options
+	erebos.SetLogrusOptions()
+
+	// redirect go default logger to /dev/null
+	log.SetOutput(ioutil.Discard)
+}
+
 func main() {
 	var (
-		err                 error
-		configFlag, logFlag string
-		configFile, logFile string
-		logFH               *reopen.FileWriter
-		versionFlag         bool
+		err         error
+		configFlag  string
+		logFH       *reopen.FileWriter
+		versionFlag bool
 	)
 	flag.StringVar(&configFlag, `config`, `cyclone.conf`, `Configuration file location`)
-	flag.StringVar(&logFlag, `log`, `cyclone.log`, `Logfile location`)
 	flag.BoolVar(&versionFlag, `version`, false, `Print version information`)
 	flag.Parse()
 
@@ -56,68 +66,56 @@ func main() {
 	}
 
 	// load configuration file
-	if configFile, err = filepath.Abs(configFlag); err != nil {
-		log.Fatalln(err)
-	}
-	if configFile, err = filepath.EvalSymlinks(configFile); err != nil {
-		log.Fatalln(err)
-	}
-	conf := CycloneConfig{}
-	if err = conf.readConfigFile(configFile); err != nil {
-		log.Fatalln(err)
+	conf := erebos.Config{}
+	if err = conf.FromFile(configFlag); err != nil {
+		logrus.Fatalf("Could not open configuration: %s", err)
 	}
 
-	// set logfile
-	if logFile, err = filepath.Abs(logFlag); err != nil {
-		log.Fatalln(`abs`, err)
+	// setup logfile
+	if logFH, err = reopen.NewFileWriter(
+		filepath.Join(conf.Log.Path, conf.Log.File),
+	); err != nil {
+		logrus.Fatalf("Unable to open logfile: %s", err)
+	} else {
+		conf.Log.FH = logFH
 	}
-	if logFH, err = reopen.NewFileWriter(logFile); err != nil {
-		log.Fatalln(`reopen`, err)
-	}
-	logger := logrus.New()
-	logger.Formatter = &logrus.TextFormatter{
-		DisableColors: true,
-		FullTimestamp: true,
-	}
-	logger.Out = logFH
-
-	// redirect go default logger to /dev/null
-	log.SetOutput(ioutil.Discard)
+	logrus.SetOutput(conf.Log.FH)
 
 	// register signal handler for logrotate on SIGUSR2
-	sigChanLogRotate := make(chan os.Signal, 1)
-	signal.Notify(sigChanLogRotate, syscall.SIGUSR2)
-	go func(sigChan chan os.Signal, fh *reopen.FileWriter) {
-		for {
-			select {
-			case <-sigChan:
-				if fail := fh.Reopen(); fail != nil {
-					fmt.Fprintln(os.Stderr, `FATAL - Failed to rotate logfile.`, err)
-					os.Exit(2)
-				}
-			}
-		}
-	}(sigChanLogRotate, logFH)
+	if conf.Log.Rotate {
+		sigChanLogRotate := make(chan os.Signal, 1)
+		signal.Notify(sigChanLogRotate, syscall.SIGUSR2)
+		go erebos.Logrotate(sigChanLogRotate, conf)
+	}
 
 	// register signal handler for shutdown on SIGINT/SIGTERM
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
 	config := consumergroup.NewConfig()
-	config.Offsets.Initial = sarama.OffsetNewest
+	switch conf.Kafka.ConsumerOffsetStrategy {
+	case `Oldest`, `oldest`:
+	case `Newest`, `newest`:
+		config.Offsets.Initial = sarama.OffsetNewest
+	default:
+		logrus.Fatalf("Invalid consumer strategy: %s",
+			conf.Kafka.ConsumerOffsetStrategy)
+	}
 	config.Offsets.ProcessingTimeout = 10 * time.Second
-	config.Offsets.CommitInterval = time.Duration(conf.ZkSync) * time.Millisecond
-	config.Offsets.ResetOffsets = conf.ZkResetOffset
+	config.Offsets.CommitInterval = time.Duration(
+		conf.Zookeeper.CommitInterval,
+	) * time.Millisecond
+	config.Offsets.ResetOffsets = conf.Zookeeper.ResetOffset
 	var zkNodes []string
 
-	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(conf.Zookeeper)
-	logger.Println(`Using ZK chroot: `, config.Zookeeper.Chroot)
+	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(conf.Zookeeper.Connect)
+	logrus.Println(`Using ZK chroot: `, config.Zookeeper.Chroot)
 
-	topic := strings.Split(conf.Topics, `,`)
+	topic := strings.Split(conf.Kafka.ConsumerTopics, `,`)
 
-	consumer, err := consumergroup.JoinConsumerGroup(conf.ConsumerGroup, topic, zkNodes, config)
+	consumer, err := consumergroup.JoinConsumerGroup(conf.Kafka.ConsumerGroup, topic, zkNodes, config)
 	if err != nil {
-		logger.Fatalln(err)
+		logrus.Fatalln(err)
 	}
 
 	eventCount := 0
@@ -125,22 +123,22 @@ func main() {
 	handlers := make(map[int]cyclone.Cyclone)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
-		logger.Printf("MAIN, Starting cyclone handler %d", i)
+		logrus.Printf("MAIN, Starting cyclone handler %d", i)
 		cChan := make(chan *metric.Metric)
 		cl := cyclone.Cyclone{
 			Num:                 i,
 			Input:               cChan,
-			CfgRedisConnect:     conf.RedisConnect,
-			CfgRedisPassword:    conf.RedisPassword,
-			CfgRedisDB:          conf.RedisDB,
-			CfgAlarmDestination: conf.AlarmDestination,
-			CfgLookupHost:       conf.LookupHost,
-			CfgLookupPort:       conf.LookupPort,
-			CfgLookupPath:       conf.LookupPath,
-			CfgAPIVersion:       conf.APIVersion,
-			TestMode:            conf.TestMode,
+			CfgRedisConnect:     conf.Redis.Connect,
+			CfgRedisPassword:    conf.Redis.Password,
+			CfgRedisDB:          conf.Redis.DB,
+			CfgAlarmDestination: conf.Cyclone.DestinationURI,
+			CfgLookupHost:       conf.Cyclone.LookupHost,
+			CfgLookupPort:       conf.Cyclone.LookupPort,
+			CfgLookupPath:       conf.Cyclone.LookupPath,
+			CfgAPIVersion:       conf.Cyclone.APIVersion,
+			TestMode:            conf.Cyclone.TestMode,
 		}
-		cl.SetLog(logger)
+		cl.SetLog(logrus.StandardLogger())
 		handlers[i] = cl
 		go cl.Run()
 	}
@@ -148,7 +146,7 @@ func main() {
 	heartbeat := time.Tick(5 * time.Second)
 	beatcount := 0
 
-	ageCutOff := time.Duration(conf.MetricsMaxAge) * time.Minute * -1
+	ageCutOff := time.Duration(conf.Cyclone.MetricsMaxAge) * time.Minute * -1
 
 runloop:
 	for {
@@ -166,19 +164,19 @@ runloop:
 			}
 			continue runloop
 		case e := <-consumer.Errors():
-			logger.Println(e)
+			logrus.Println(e)
 		case message := <-consumer.Messages():
 			if offsets[message.Topic] == nil {
 				offsets[message.Topic] = make(map[int32]int64)
 			}
 
-			logger.Printf("MAIN, Received topic:%s/partition:%d/offset:%d",
+			logrus.Printf("MAIN, Received topic:%s/partition:%d/offset:%d",
 				message.Topic, message.Partition, message.Offset)
 
 			eventCount++
 			if offsets[message.Topic][message.Partition] != 0 &&
 				offsets[message.Topic][message.Partition] != message.Offset-1 {
-				logger.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n",
+				logrus.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n",
 					message.Topic, message.Partition,
 					offsets[message.Topic][message.Partition]+1, message.Offset,
 					message.Offset-offsets[message.Topic][message.Partition]+1,
@@ -187,7 +185,7 @@ runloop:
 
 			m, err := metric.FromBytes(message.Value)
 			if err != nil {
-				logger.Printf("MAIN ERROR, Decoding metric data: %s\n", err)
+				logrus.Printf("MAIN ERROR, Decoding metric data: %s\n", err)
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -259,7 +257,7 @@ runloop:
 				m = nil
 			}
 			if m == nil {
-				logger.Println(`MAIN, Ignoring received metric`)
+				logrus.Println(`MAIN, Ignoring received metric`)
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -268,7 +266,7 @@ runloop:
 			// ignore metrics that are simply too old for useful
 			// alerting
 			if time.Now().UTC().Add(ageCutOff).After(m.TS.UTC()) {
-				logger.Printf("MAIN ERROR, Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
+				logrus.Printf("MAIN ERROR, Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -281,13 +279,13 @@ runloop:
 		}
 	}
 	if err := consumer.Close(); err != nil {
-		sarama.Logger.Println("Error closing the consumer", err)
+		logrus.Println("Error closing the consumer", err)
 	}
 
 	// give handler routines a chance to finish their work
 	time.Sleep(2 * time.Second)
-	logger.Printf("Processed %d events.", eventCount)
-	logger.Printf("%+v", offsets)
+	logrus.Printf("Processed %d events.", eventCount)
+	logrus.Printf("%+v", offsets)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix
