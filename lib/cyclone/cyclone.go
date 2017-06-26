@@ -25,6 +25,7 @@ import (
 	"github.com/mjolnir42/cyclone/lib/disk"
 	"github.com/mjolnir42/cyclone/lib/mem"
 	"github.com/mjolnir42/cyclone/lib/metric"
+	metrics "github.com/rcrowley/go-metrics"
 	"gopkg.in/redis.v3"
 )
 
@@ -47,6 +48,7 @@ type Cyclone struct {
 	TestMode            bool
 	internalInput       chan *metric.Metric
 	logger              *logrus.Logger
+	Metrics             *metrics.Registry
 }
 
 type AlarmEvent struct {
@@ -218,6 +220,8 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		return
 	}
 	cl.logger.Printf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", cl.Num, m.Path, m.AssetID, lid)
+	evals := metrics.GetOrRegisterMeter(`/evaluations`, *cl.Metrics)
+	evals.Mark(1)
 
 	internalMetric := false
 	switch m.Path {
@@ -327,6 +331,8 @@ thrloop:
 			// do not send out alarms in testmode
 			continue thrloop
 		}
+		alrms := metrics.GetOrRegisterMeter(`/alarms`, *cl.Metrics)
+		alrms.Mark(1)
 		go func(a AlarmEvent) {
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}

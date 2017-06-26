@@ -28,6 +28,8 @@ import (
 	"github.com/mjolnir42/cyclone/lib/cyclone"
 	"github.com/mjolnir42/cyclone/lib/metric"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/legacy"
+	metrics "github.com/rcrowley/go-metrics"
 	"github.com/wvanbergen/kafka/consumergroup"
 	"github.com/wvanbergen/kazoo-go"
 )
@@ -106,6 +108,28 @@ func main() {
 		conf.Zookeeper.CommitInterval,
 	) * time.Millisecond
 	config.Offsets.ResetOffsets = conf.Zookeeper.ResetOffset
+
+	// setup metrics
+	var metricPrefix string
+	switch conf.Misc.InstanceName {
+	case ``:
+		metricPrefix = `/cyclone`
+	default:
+		metricPrefix = fmt.Sprintf("/cyclone/%s",
+			conf.Misc.InstanceName)
+	}
+	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
+	metrics.NewRegisteredMeter(`/consumed/metrics`, pfxRegistry)
+	metrics.NewRegisteredMeter(`/evaluations`, pfxRegistry)
+	metrics.NewRegisteredMeter(`/alarms`, pfxRegistry)
+
+	handlerDeath := make(chan error)
+	ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath, cyclone.FormatMetrics)
+	if conf.Misc.ProduceMetrics {
+		logrus.Info(`Launched metrics producer socket`)
+		go ms.Run()
+	}
+
 	var zkNodes []string
 
 	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(conf.Zookeeper.Connect)
@@ -119,6 +143,7 @@ func main() {
 	}
 
 	eventCount := 0
+	mtrCount := metrics.GetOrRegisterMeter(`/consumed/metrics`, pfxRegistry)
 	offsets := make(map[string]map[int32]int64)
 	handlers := make(map[int]cyclone.Cyclone)
 
@@ -137,6 +162,7 @@ func main() {
 			CfgLookupPath:       conf.Cyclone.LookupPath,
 			CfgAPIVersion:       conf.Cyclone.APIVersion,
 			TestMode:            conf.Cyclone.TestMode,
+			Metrics:             &pfxRegistry,
 		}
 		cl.SetLog(logrus.StandardLogger())
 		handlers[i] = cl
@@ -153,6 +179,11 @@ runloop:
 		select {
 		case <-c:
 			// SIGINT/SIGTERM
+			break runloop
+		case err := <-ms.Errors:
+			logrus.Errorf("Socket error: %s", err.Error())
+		case err := <-handlerDeath:
+			logrus.Errorf("Handler died: %s", err.Error())
 			break runloop
 		case <-heartbeat:
 			// 32bit time_t held 68years at one tick per second. This should
@@ -174,6 +205,7 @@ runloop:
 				message.Topic, message.Partition, message.Offset)
 
 			eventCount++
+			mtrCount.Mark(1)
 			if offsets[message.Topic][message.Partition] != 0 &&
 				offsets[message.Topic][message.Partition] != message.Offset-1 {
 				logrus.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n",
@@ -278,6 +310,7 @@ runloop:
 			consumer.CommitUpto(message)
 		}
 	}
+	close(ms.Shutdown)
 	if err := consumer.Close(); err != nil {
 		logrus.Println("Error closing the consumer", err)
 	}
