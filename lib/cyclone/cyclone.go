@@ -206,7 +206,7 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		m = nil
 	}
 	if m == nil {
-		cl.logger.Printf("Cyclone[%d], Metric has been consumed\n", cl.Num)
+		cl.logger.Printf("Cyclone[%d], Metric has been consumed", cl.Num)
 		return
 	}
 	lid := m.LookupID()

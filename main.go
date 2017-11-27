@@ -208,7 +208,7 @@ runloop:
 			mtrCount.Mark(1)
 			if offsets[message.Topic][message.Partition] != 0 &&
 				offsets[message.Topic][message.Partition] != message.Offset-1 {
-				logrus.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.\n",
+				logrus.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.",
 					message.Topic, message.Partition,
 					offsets[message.Topic][message.Partition]+1, message.Offset,
 					message.Offset-offsets[message.Topic][message.Partition]+1,
@@ -217,7 +217,7 @@ runloop:
 
 			m, err := metric.FromBytes(message.Value)
 			if err != nil {
-				logrus.Printf("MAIN ERROR, Decoding metric data: %s\n", err)
+				logrus.Printf("MAIN ERROR, Decoding metric data: %s", err)
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
