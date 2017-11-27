@@ -88,6 +88,12 @@ func main() {
 	}
 	logrus.SetOutput(conf.Log.FH)
 
+	if conf.Log.Debug {
+		logrus.SetLevel(logrus.DebugLevel)
+	} else {
+		logrus.SetLevel(logrus.WarnLevel)
+	}
+
 	// register signal handler for logrotate on SIGUSR2
 	if conf.Log.Rotate {
 		sigChanLogRotate := make(chan os.Signal, 1)
@@ -138,7 +144,7 @@ func main() {
 	var zkNodes []string
 
 	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(conf.Zookeeper.Connect)
-	logrus.Println(`Using ZK chroot: `, config.Zookeeper.Chroot)
+	logrus.Debug(`Using ZK chroot: `, config.Zookeeper.Chroot)
 
 	topic := strings.Split(conf.Kafka.ConsumerTopics, `,`)
 
@@ -148,7 +154,7 @@ func main() {
 	handlers := make(map[int]cyclone.Cyclone)
 
 	for i := 0; i < runtime.NumCPU(); i++ {
-		logrus.Printf("MAIN, Starting cyclone handler %d", i)
+		logrus.Infof("MAIN, Starting cyclone handler %d", i)
 		cChan := make(chan *metric.Metric)
 		cl := cyclone.Cyclone{
 			Num:                 i,
@@ -201,9 +207,9 @@ runloop:
 			}
 			continue runloop
 		case e := <-consumer.Errors():
-			logrus.Println(e)
+			logrus.Errorln(e)
 			if err := consumer.Close(); err != nil {
-				logrus.Println(err)
+				logrus.Errorln(err)
 			}
 			goto reconnect
 		case message := <-consumer.Messages():
@@ -211,14 +217,14 @@ runloop:
 				offsets[message.Topic] = make(map[int32]int64)
 			}
 
-			logrus.Printf("MAIN, Received topic:%s/partition:%d/offset:%d",
+			logrus.Debugf("MAIN, Received topic:%s/partition:%d/offset:%d",
 				message.Topic, message.Partition, message.Offset)
 
 			eventCount++
 			mtrCount.Mark(1)
 			if offsets[message.Topic][message.Partition] != 0 &&
 				offsets[message.Topic][message.Partition] != message.Offset-1 {
-				logrus.Printf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.",
+				logrus.Errorf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.",
 					message.Topic, message.Partition,
 					offsets[message.Topic][message.Partition]+1, message.Offset,
 					message.Offset-offsets[message.Topic][message.Partition]+1,
@@ -227,7 +233,7 @@ runloop:
 
 			m, err := metric.FromBytes(message.Value)
 			if err != nil {
-				logrus.Printf("MAIN ERROR, Decoding metric data: %s", err)
+				logrus.Errorf("MAIN ERROR, Decoding metric data: %s", err)
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -299,7 +305,7 @@ runloop:
 				m = nil
 			}
 			if m == nil {
-				logrus.Println(`MAIN, Ignoring received metric`)
+				logrus.Debugln(`MAIN, Ignoring received metric`)
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -308,7 +314,7 @@ runloop:
 			// ignore metrics that are simply too old for useful
 			// alerting
 			if time.Now().UTC().Add(ageCutOff).After(m.TS.UTC()) {
-				logrus.Printf("MAIN ERROR, Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
+				logrus.Warnln("MAIN ERROR, Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
 				offsets[message.Topic][message.Partition] = message.Offset
 				consumer.CommitUpto(message)
 				continue
@@ -322,13 +328,13 @@ runloop:
 	}
 	close(ms.Shutdown)
 	if err := consumer.Close(); err != nil {
-		logrus.Println("Error closing the consumer", err)
+		logrus.Error("Error closing the consumer", err)
 	}
 
 	// give handler routines a chance to finish their work
 	time.Sleep(2 * time.Second)
-	logrus.Printf("Processed %d events.", eventCount)
-	logrus.Printf("%+v", offsets)
+	logrus.Infof("Processed %d events.", eventCount)
+	logrus.Infof("%+v", offsets)
 }
 
 func reconnect(name string, topics, zookeeper []string, config *consumergroup.Config) *consumergroup.ConsumerGroup {
@@ -342,7 +348,7 @@ retry:
 		logrus.Fatalln(err)
 	} else if err != nil && reconnectAttempts < 5 {
 		// attempt to reconnect
-		logrus.Println(err)
+		logrus.Errorln(err)
 		time.Sleep(time.Duration(reconnectTimeout[reconnectAttempts]) * time.Second)
 		reconnectAttempts++
 		goto retry
@@ -352,6 +358,7 @@ retry:
 	}
 	connected = true
 	reconnectAttempts = 0
+	logrus.Info(`Successfully connected to consumergroup`)
 	return consumer
 }
 

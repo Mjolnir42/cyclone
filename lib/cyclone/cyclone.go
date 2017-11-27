@@ -86,12 +86,12 @@ func (cl *Cyclone) Run() {
 		cl.logger.Fatalln(err)
 	}
 
-	cl.logger.Printf("Cyclone[%d], Handler ready for input", cl.Num)
+	cl.logger.Infof("Cyclone[%d], Handler ready for input", cl.Num)
 
 	for {
 		select {
 		case m := <-cl.internalInput:
-			cl.logger.Printf(
+			cl.logger.Debugf(
 				"Cyclone[%d], Received metric %s from %d",
 				cl.Num,
 				m.Path,
@@ -99,7 +99,7 @@ func (cl *Cyclone) Run() {
 			)
 			cl.eval(m)
 		case m := <-cl.Input:
-			cl.logger.Printf(
+			cl.logger.Debugf(
 				"Cyclone[%d], Received metric %s from %d",
 				cl.Num,
 				m.Path,
@@ -206,20 +206,20 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		m = nil
 	}
 	if m == nil {
-		cl.logger.Printf("Cyclone[%d], Metric has been consumed", cl.Num)
+		cl.logger.Debugf("Cyclone[%d], Metric has been consumed", cl.Num)
 		return
 	}
 	lid := m.LookupID()
 	thr := cl.Lookup(lid)
 	if thr == nil {
-		cl.logger.Printf("Cyclone[%d], ERROR fetching threshold data. Lookup service available?", cl.Num)
+		cl.logger.Errorf("Cyclone[%d], ERROR fetching threshold data. Lookup service available?", cl.Num)
 		return
 	}
 	if len(thr) == 0 {
-		cl.logger.Printf("Cyclone[%d], No thresholds configured for %s from %d", cl.Num, m.Path, m.AssetID)
+		cl.logger.Debugf("Cyclone[%d], No thresholds configured for %s from %d", cl.Num, m.Path, m.AssetID)
 		return
 	}
-	cl.logger.Printf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", cl.Num, m.Path, m.AssetID, lid)
+	cl.logger.Debugf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", cl.Num, m.Path, m.AssetID, lid)
 	evals := metrics.GetOrRegisterMeter(`/evaluations`, *cl.Metrics)
 	evals.Mark(1)
 
@@ -270,7 +270,7 @@ thrloop:
 		if !dispatchAlarm {
 			continue thrloop
 		}
-		cl.logger.Printf("Cyclone[%d], Evaluating metric %s from %d against config %s",
+		cl.logger.Debugf("Cyclone[%d], Evaluating metric %s from %d against config %s",
 			cl.Num, m.Path, m.AssetID, thr[key].ID)
 		evaluations++
 
@@ -280,7 +280,7 @@ thrloop:
 			if !ok {
 				continue
 			}
-			cl.logger.Printf("Cyclone[%d], Checking %s alarmlevel %s", cl.Num, thr[key].ID, lvl)
+			cl.logger.Debugf("Cyclone[%d], Checking %s alarmlevel %s", cl.Num, thr[key].ID, lvl)
 			switch m.Type {
 			case `integer`:
 				fallthrough
@@ -337,7 +337,7 @@ thrloop:
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}
 			if err := json.NewEncoder(b).Encode(aSlice); err != nil {
-				cl.logger.Printf("Cyclone[%d], ERROR json encoding alarm for %s: %s", cl.Num, a.EventID, err)
+				cl.logger.Errorf("Cyclone[%d], ERROR json encoding alarm for %s: %s", cl.Num, a.EventID, err)
 				return
 			}
 			resp, err := http.Post(
@@ -347,22 +347,22 @@ thrloop:
 			)
 
 			if err != nil {
-				cl.logger.Printf("Cyclone[%d], ERROR sending alarm for %s: %s", cl.Num, a.EventID, err)
+				cl.logger.Errorf("Cyclone[%d], ERROR sending alarm for %s: %s", cl.Num, a.EventID, err)
 				return
 			}
-			cl.logger.Printf("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
+			cl.logger.Infof("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
 				cl.Num, a.EventID, a.Level, resp.StatusCode)
 			if resp.StatusCode >= 209 {
 				// read response body
 				bt, _ := ioutil.ReadAll(resp.Body)
-				cl.logger.Printf("Cyclone[%d], ResponseMsg(%d): %s", cl.Num, resp.StatusCode, string(bt))
+				cl.logger.Errorf("Cyclone[%d], ResponseMsg(%d): %s", cl.Num, resp.StatusCode, string(bt))
 				resp.Body.Close()
 
 				// reset buffer and encode JSON again so it can be
 				// logged
 				b.Reset()
 				json.NewEncoder(b).Encode(aSlice)
-				cl.logger.Printf("Cyclone[%d], RequestJSON: %s", cl.Num, b.String())
+				cl.logger.Errorf("Cyclone[%d], RequestJSON: %s", cl.Num, b.String())
 				return
 			}
 			// ensure http.Response.Body is consumed and closed,
@@ -372,7 +372,7 @@ thrloop:
 		}(al)
 	}
 	if evaluations == 0 {
-		cl.logger.Printf("Cyclone[%d], metric %s(%d) matched no configurations", cl.Num, m.Path, m.AssetID)
+		cl.logger.Debugf("Cyclone[%d], metric %s(%d) matched no configurations", cl.Num, m.Path, m.AssetID)
 	}
 }
 
@@ -392,7 +392,7 @@ func (cl *Cyclone) CmpInt(pred string, value, threshold int64) (bool, string) {
 	case `!=`:
 		return value != threshold, fVal
 	default:
-		cl.logger.Printf("Cyclone[], ERROR unknown predicate: %s", pred)
+		cl.logger.Errorf("Cyclone[], ERROR unknown predicate: %s", pred)
 		return false, ``
 	}
 }
@@ -414,7 +414,7 @@ func (cl *Cyclone) CmpFlp(pred string, value float64, threshold int64) (bool, st
 	case `!=`:
 		return value != fthreshold, fVal
 	default:
-		cl.logger.Printf("Cyclone[], ERROR unknown predicate: %s", pred)
+		cl.logger.Errorf("Cyclone[], ERROR unknown predicate: %s", pred)
 		return false, ``
 	}
 }
