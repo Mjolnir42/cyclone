@@ -35,6 +35,9 @@ import (
 )
 
 var githash, shorthash, builddate, buildtime string
+var connected bool
+var reconnectAttempts int
+var reconnectTimeout [5]int
 
 func init() {
 	// Discard logspam from Zookeeper library
@@ -45,6 +48,8 @@ func init() {
 
 	// redirect go default logger to /dev/null
 	log.SetOutput(ioutil.Discard)
+
+	reconnectTimeout = [5]int{5, 10, 20, 30, 60}
 }
 
 func main() {
@@ -137,11 +142,6 @@ func main() {
 
 	topic := strings.Split(conf.Kafka.ConsumerTopics, `,`)
 
-	consumer, err := consumergroup.JoinConsumerGroup(conf.Kafka.ConsumerGroup, topic, zkNodes, config)
-	if err != nil {
-		logrus.Fatalln(err)
-	}
-
 	eventCount := 0
 	mtrCount := metrics.GetOrRegisterMeter(`/consumed/metrics`, pfxRegistry)
 	offsets := make(map[string]map[int32]int64)
@@ -174,6 +174,12 @@ func main() {
 
 	ageCutOff := time.Duration(conf.Cyclone.MetricsMaxAge) * time.Minute * -1
 
+reconnect:
+	consumer, err := consumergroup.JoinConsumerGroup(conf.Kafka.ConsumerGroup, topic, zkNodes, config)
+	if err != nil {
+		logrus.Fatalln(err)
+	}
+
 runloop:
 	for {
 		select {
@@ -196,6 +202,10 @@ runloop:
 			continue runloop
 		case e := <-consumer.Errors():
 			logrus.Println(e)
+			if err := consumer.Close(); err != nil {
+				logrus.Println(err)
+			}
+			goto reconnect
 		case message := <-consumer.Messages():
 			if offsets[message.Topic] == nil {
 				offsets[message.Topic] = make(map[int32]int64)
@@ -319,6 +329,30 @@ runloop:
 	time.Sleep(2 * time.Second)
 	logrus.Printf("Processed %d events.", eventCount)
 	logrus.Printf("%+v", offsets)
+}
+
+func reconnect(name string, topics, zookeeper []string, config *consumergroup.Config) *consumergroup.ConsumerGroup {
+	var consumer *consumergroup.ConsumerGroup
+	var err error
+
+retry:
+	consumer, err = consumergroup.JoinConsumerGroup(name, topics, zookeeper, config)
+	if err != nil && !connected {
+		// failed to join on startup
+		logrus.Fatalln(err)
+	} else if err != nil && reconnectAttempts < 5 {
+		// attempt to reconnect
+		logrus.Println(err)
+		time.Sleep(time.Duration(reconnectTimeout[reconnectAttempts]) * time.Second)
+		reconnectAttempts++
+		goto retry
+	} else if err != nil {
+		// exhausted reconnect attempts - give up
+		logrus.Fatalln(err)
+	}
+	connected = true
+	reconnectAttempts = 0
+	return consumer
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix
