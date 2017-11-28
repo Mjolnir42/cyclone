@@ -7,7 +7,7 @@
  * that can be found in the LICENSE file.
  */
 
-package main
+package main // import "github.com/mjolnir42/cyclone/cmd/cyclone"
 
 import (
 	"flag"
@@ -26,7 +26,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/cyclone/lib/cyclone"
-	"github.com/mjolnir42/cyclone/lib/metric"
+	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"

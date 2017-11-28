@@ -1,12 +1,12 @@
 /*-
- * Copyright © 2016, Jörg Pernfuß <code.jpe@gmail.com>
+ * Copyright © 2016,2017, Jörg Pernfuß <code.jpe@gmail.com>
  * All rights reserved.
  *
  * Use of this source code is governed by a 2-clause BSD license
  * that can be found in the LICENSE file.
  */
 
-package mem
+package mem // import "github.com/mjolnir42/cyclone/lib/cyclone/mem"
 
 import (
 	"math"
@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mjolnir42/cyclone/lib/metric"
+	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
 )
 
 type Mem struct {

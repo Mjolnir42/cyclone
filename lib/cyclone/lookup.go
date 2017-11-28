@@ -1,5 +1,5 @@
 /*-
- * Copyright © 2016, Jörg Pernfuß <code.jpe@gmail.com>
+ * Copyright © 2016-2017, Jörg Pernfuß <code.jpe@gmail.com>
  * Copyright © 2016, 1&1 Internet SE
  * All rights reserved.
  *
@@ -7,7 +7,7 @@
  * that can be found in the LICENSE file.
  */
 
-package cyclone
+package cyclone // import "github.com/mjolnir42/cyclone/lib/cyclone"
 
 import (
 	"encoding/json"
