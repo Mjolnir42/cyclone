@@ -25,30 +25,36 @@ import (
 	"github.com/mjolnir42/cyclone/lib/cyclone/disk"
 	"github.com/mjolnir42/cyclone/lib/cyclone/mem"
 	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
+	"github.com/mjolnir42/erebos"
 	metrics "github.com/rcrowley/go-metrics"
 	"gopkg.in/redis.v3"
 )
 
+// Handlers is the registry of running application handlers
+var Handlers map[int]erebos.Handler
+
+// AgeCutOff is the duration after which back-processed alarms are
+// ignored and not alerted
+var AgeCutOff time.Duration
+
+func init() {
+	Handlers = make(map[int]erebos.Handler)
+}
+
+// Cyclone performs threshold evaluation alarming on metrics
 type Cyclone struct {
-	Num                 int
-	CPUData             map[int64]cpu.CPU
-	MemData             map[int64]mem.Mem
-	CTXData             map[int64]cpu.CTX
-	DskData             map[int64]map[string]disk.Disk
-	Input               chan *metric.Metric
-	Redis               *redis.Client
-	CfgRedisConnect     string
-	CfgRedisPassword    string
-	CfgRedisDB          int64
-	CfgAlarmDestination string
-	CfgLookupHost       string
-	CfgLookupPort       string
-	CfgLookupPath       string
-	CfgAPIVersion       string
-	TestMode            bool
-	internalInput       chan *metric.Metric
-	logger              *logrus.Logger
-	Metrics             *metrics.Registry
+	Num           int
+	Input         chan *erebos.Transport
+	Shutdown      chan struct{}
+	Death         chan error
+	Config        *erebos.Config
+	Metrics       *metrics.Registry
+	CPUData       map[int64]cpu.CPU
+	MemData       map[int64]mem.Mem
+	CTXData       map[int64]cpu.CTX
+	DskData       map[int64]map[string]disk.Disk
+	redis         *redis.Client
+	internalInput chan *metric.Metric
 }
 
 type AlarmEvent struct {
@@ -66,64 +72,76 @@ type AlarmEvent struct {
 	Team       string `json:"team"`
 }
 
-func (cl *Cyclone) SetLog(l *logrus.Logger) {
-	cl.logger = l
-}
+// run is the event loop for Cyclone
+func (c *Cyclone) run() {
 
-func (cl *Cyclone) Run() {
-	cl.CPUData = make(map[int64]cpu.CPU)
-	cl.MemData = make(map[int64]mem.Mem)
-	cl.CTXData = make(map[int64]cpu.CTX)
-	cl.DskData = make(map[int64]map[string]disk.Disk)
-	cl.internalInput = make(chan *metric.Metric, 32)
-	cl.Redis = redis.NewClient(&redis.Options{
-		Addr:     cl.CfgRedisConnect,
-		Password: cl.CfgRedisPassword,
-		DB:       cl.CfgRedisDB,
-	})
-	defer cl.Redis.Close()
-	if _, err := cl.Redis.Ping().Result(); err != nil {
-		cl.logger.Fatalln(err)
-	}
-
-	cl.logger.Infof("Cyclone[%d], Handler ready for input", cl.Num)
-
+runloop:
 	for {
 		select {
-		case m := <-cl.internalInput:
-			cl.logger.Debugf(
-				"Cyclone[%d], Received metric %s from %d",
-				cl.Num,
-				m.Path,
-				m.AssetID,
-			)
-			cl.eval(m)
-		case m := <-cl.Input:
-			cl.logger.Debugf(
-				"Cyclone[%d], Received metric %s from %d",
-				cl.Num,
-				m.Path,
-				m.AssetID,
-			)
-			cl.eval(m)
+		case <-c.Shutdown:
+			// received shutdown, drain input channel which will be
+			// closed by main
+			goto drainloop
+		case msg := <-c.Input:
+			if msg == nil {
+				// this can happen if we read the closed Input channel
+				// before the closed Shutdown channel
+				continue runloop
+			}
+			if err := c.process(msg); err != nil {
+				c.Death <- err
+				<-c.Shutdown
+				break runloop
+			}
+		}
+	}
+
+drainloop:
+	for {
+		select {
+		case msg := <-c.Input:
+			if msg == nil {
+				// channel is closed
+				break drainloop
+			}
+			c.process(msg)
 		}
 	}
 }
 
-func (cl *Cyclone) eval(m *metric.Metric) {
-	// Processing
+// process evaluates a metric and raises alarms as required
+func (c *Cyclone) process(msg *erebos.Transport) error {
+	if msg == nil || msg.Value == nil {
+		logrus.Warnf("Ignoring empty message from: %d", msg.HostID)
+		if msg != nil {
+			go c.commit(msg)
+		}
+		return nil
+	}
+
+	m, err := metric.FromBytes(msg.Value)
+	if err != nil {
+		return err
+	}
+
 	switch m.Path {
 	case `_internal.cyclone.heartbeat`:
-		cl.heartbeat()
-		return
+		c.heartbeat()
+		return nil
+	}
+
+	// non-heartbeat metrics count towards processed metrics
+	metrics.GetOrRegisterMeter(`/metrics/processed`, *c.Metrics).Mark(1)
+
+	switch m.Path {
 	case `/sys/cpu/ctx`:
 		ctx := cpu.CTX{}
 		id := m.AssetID
-		if _, ok := cl.CTXData[id]; ok {
-			ctx = cl.CTXData[id]
+		if _, ok := c.CTXData[id]; ok {
+			ctx = c.CTXData[id]
 		}
 		m = ctx.Update(m)
-		cl.CTXData[id] = ctx
+		c.CTXData[id] = ctx
 
 	case `/sys/cpu/count/idle`:
 		fallthrough
@@ -140,12 +158,12 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 	case `/sys/cpu/count/user`:
 		cu := cpu.CPU{}
 		id := m.AssetID
-		if _, ok := cl.CPUData[id]; ok {
-			cu = cl.CPUData[id]
+		if _, ok := c.CPUData[id]; ok {
+			cu = c.CPUData[id]
 		}
 		cu.Update(m)
 		m = cu.Calculate()
-		cl.CPUData[id] = cu
+		c.CPUData[id] = cu
 
 	case `/sys/memory/active`:
 		fallthrough
@@ -164,12 +182,12 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 	case `/sys/memory/total`:
 		mm := mem.Mem{}
 		id := m.AssetID
-		if _, ok := cl.MemData[id]; ok {
-			mm = cl.MemData[id]
+		if _, ok := c.MemData[id]; ok {
+			mm = c.MemData[id]
 		}
 		mm.Update(m)
 		m = mm.Calculate()
-		cl.MemData[id] = mm
+		c.MemData[id] = mm
 
 	case `/sys/disk/blk_total`:
 		fallthrough
@@ -185,42 +203,44 @@ func (cl *Cyclone) eval(m *metric.Metric) {
 		d := disk.Disk{}
 		id := m.AssetID
 		mpt := m.Tags[0]
-		if cl.DskData[id] == nil {
-			cl.DskData[id] = make(map[string]disk.Disk)
+		if c.DskData[id] == nil {
+			c.DskData[id] = make(map[string]disk.Disk)
 		}
-		if _, ok := cl.DskData[id][mpt]; !ok {
-			cl.DskData[id][mpt] = d
+		if _, ok := c.DskData[id][mpt]; !ok {
+			c.DskData[id][mpt] = d
 		}
-		if _, ok := cl.DskData[id][mpt]; ok {
-			d = cl.DskData[id][mpt]
+		if _, ok := c.DskData[id][mpt]; ok {
+			d = c.DskData[id][mpt]
 		}
 		d.Update(m)
 		mArr := d.Calculate()
 		if mArr != nil {
 			for _, mPtr := range mArr {
 				// no deadlock, channel is buffered
-				cl.internalInput <- mPtr
+				c.internalInput <- mPtr
 			}
 		}
-		cl.DskData[id][mpt] = d
+		c.DskData[id][mpt] = d
 		m = nil
 	}
+
 	if m == nil {
-		cl.logger.Debugf("Cyclone[%d], Metric has been consumed", cl.Num)
-		return
+		logrus.Debugf("Cyclone[%d], Metric has been consumed", c.Num)
+		return nil
 	}
+
 	lid := m.LookupID()
-	thr := cl.Lookup(lid)
+	thr := c.Lookup(lid)
 	if thr == nil {
-		cl.logger.Errorf("Cyclone[%d], ERROR fetching threshold data. Lookup service available?", cl.Num)
-		return
+		logrus.Errorf("Cyclone[%d], ERROR fetching threshold data. Lookup service available?", c.Num)
+		return nil
 	}
 	if len(thr) == 0 {
-		cl.logger.Debugf("Cyclone[%d], No thresholds configured for %s from %d", cl.Num, m.Path, m.AssetID)
-		return
+		logrus.Debugf("Cyclone[%d], No thresholds configured for %s from %d", c.Num, m.Path, m.AssetID)
+		return nil
 	}
-	cl.logger.Debugf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", cl.Num, m.Path, m.AssetID, lid)
-	evals := metrics.GetOrRegisterMeter(`/evaluations`, *cl.Metrics)
+	logrus.Debugf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", c.Num, m.Path, m.AssetID, lid)
+	evals := metrics.GetOrRegisterMeter(`/evaluations`, *c.Metrics)
 	evals.Mark(1)
 
 	internalMetric := false
@@ -270,8 +290,8 @@ thrloop:
 		if !dispatchAlarm {
 			continue thrloop
 		}
-		cl.logger.Debugf("Cyclone[%d], Evaluating metric %s from %d against config %s",
-			cl.Num, m.Path, m.AssetID, thr[key].ID)
+		logrus.Debugf("Cyclone[%d], Evaluating metric %s from %d against config %s",
+			c.Num, m.Path, m.AssetID, thr[key].ID)
 		evaluations++
 
 	lvlloop:
@@ -280,16 +300,16 @@ thrloop:
 			if !ok {
 				continue
 			}
-			cl.logger.Debugf("Cyclone[%d], Checking %s alarmlevel %s", cl.Num, thr[key].ID, lvl)
+			logrus.Debugf("Cyclone[%d], Checking %s alarmlevel %s", c.Num, thr[key].ID, lvl)
 			switch m.Type {
 			case `integer`:
 				fallthrough
 			case `long`:
-				broken, fVal = cl.CmpInt(thr[key].Predicate,
+				broken, fVal = c.cmpInt(thr[key].Predicate,
 					m.Value().(int64),
 					thrval)
 			case `real`:
-				broken, fVal = cl.CmpFlp(thr[key].Predicate,
+				broken, fVal = c.cmpFlp(thr[key].Predicate,
 					m.Value().(float64),
 					thrval)
 			}
@@ -302,7 +322,7 @@ thrloop:
 		al := AlarmEvent{
 			Source:     fmt.Sprintf("%s / %s", thr[key].MetaTargethost, thr[key].MetaSource),
 			EventID:    thr[key].ID,
-			Version:    cl.CfgAPIVersion,
+			Version:    c.Config.Cyclone.APIVersion,
 			Sourcehost: thr[key].MetaTargethost,
 			Oncall:     thr[key].Oncall,
 			Targethost: thr[key].MetaTargethost,
@@ -326,43 +346,43 @@ thrloop:
 		if al.Oncall == `` {
 			al.Oncall = `No oncall information available`
 		}
-		cl.updateEval(thr[key].ID)
-		if cl.TestMode {
+		c.updateEval(thr[key].ID)
+		if c.Config.Cyclone.TestMode {
 			// do not send out alarms in testmode
 			continue thrloop
 		}
-		alrms := metrics.GetOrRegisterMeter(`/alarms`, *cl.Metrics)
+		alrms := metrics.GetOrRegisterMeter(`/alarms`, *c.Metrics)
 		alrms.Mark(1)
 		go func(a AlarmEvent) {
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}
 			if err := json.NewEncoder(b).Encode(aSlice); err != nil {
-				cl.logger.Errorf("Cyclone[%d], ERROR json encoding alarm for %s: %s", cl.Num, a.EventID, err)
+				logrus.Errorf("Cyclone[%d], ERROR json encoding alarm for %s: %s", c.Num, a.EventID, err)
 				return
 			}
 			resp, err := http.Post(
-				cl.CfgAlarmDestination,
+				c.Config.Cyclone.DestinationURI,
 				`application/json; charset=utf-8`,
 				b,
 			)
 
 			if err != nil {
-				cl.logger.Errorf("Cyclone[%d], ERROR sending alarm for %s: %s", cl.Num, a.EventID, err)
+				logrus.Errorf("Cyclone[%d], ERROR sending alarm for %s: %s", c.Num, a.EventID, err)
 				return
 			}
-			cl.logger.Infof("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
-				cl.Num, a.EventID, a.Level, resp.StatusCode)
+			logrus.Infof("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
+				c.Num, a.EventID, a.Level, resp.StatusCode)
 			if resp.StatusCode >= 209 {
 				// read response body
 				bt, _ := ioutil.ReadAll(resp.Body)
-				cl.logger.Errorf("Cyclone[%d], ResponseMsg(%d): %s", cl.Num, resp.StatusCode, string(bt))
+				logrus.Errorf("Cyclone[%d], ResponseMsg(%d): %s", c.Num, resp.StatusCode, string(bt))
 				resp.Body.Close()
 
 				// reset buffer and encode JSON again so it can be
 				// logged
 				b.Reset()
 				json.NewEncoder(b).Encode(aSlice)
-				cl.logger.Errorf("Cyclone[%d], RequestJSON: %s", cl.Num, b.String())
+				logrus.Errorf("Cyclone[%d], RequestJSON: %s", c.Num, b.String())
 				return
 			}
 			// ensure http.Response.Body is consumed and closed,
@@ -372,11 +392,22 @@ thrloop:
 		}(al)
 	}
 	if evaluations == 0 {
-		cl.logger.Debugf("Cyclone[%d], metric %s(%d) matched no configurations", cl.Num, m.Path, m.AssetID)
+		logrus.Debugf("Cyclone[%d], metric %s(%d) matched no configurations", c.Num, m.Path, m.AssetID)
+	}
+	return nil
+}
+
+// commit marks a message as fully processed
+func (c *Cyclone) commit(msg *erebos.Transport) {
+	msg.Commit <- &erebos.Commit{
+		Topic:     msg.Topic,
+		Partition: msg.Partition,
+		Offset:    msg.Offset,
 	}
 }
 
-func (cl *Cyclone) CmpInt(pred string, value, threshold int64) (bool, string) {
+// cmpInt compares an integer value against a threshold
+func (c *Cyclone) cmpInt(pred string, value, threshold int64) (bool, string) {
 	fVal := fmt.Sprintf("%d", value)
 	switch pred {
 	case `<`:
@@ -392,12 +423,13 @@ func (cl *Cyclone) CmpInt(pred string, value, threshold int64) (bool, string) {
 	case `!=`:
 		return value != threshold, fVal
 	default:
-		cl.logger.Errorf("Cyclone[], ERROR unknown predicate: %s", pred)
+		logrus.Errorf("Cyclone[%d], ERROR unknown predicate: %s", c.Num, pred)
 		return false, ``
 	}
 }
 
-func (cl *Cyclone) CmpFlp(pred string, value float64, threshold int64) (bool, string) {
+// cmpFlp compares a floating point value against a threshold
+func (c *Cyclone) cmpFlp(pred string, value float64, threshold int64) (bool, string) {
 	fthreshold := float64(threshold)
 	fVal := fmt.Sprintf("%.3f", value)
 	switch pred {
@@ -414,7 +446,7 @@ func (cl *Cyclone) CmpFlp(pred string, value float64, threshold int64) (bool, st
 	case `!=`:
 		return value != fthreshold, fVal
 	default:
-		cl.logger.Errorf("Cyclone[], ERROR unknown predicate: %s", pred)
+		logrus.Errorf("Cyclone[%d], ERROR unknown predicate: %s", c.Num, pred)
 		return false, ``
 	}
 }

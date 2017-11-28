@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/Sirupsen/logrus"
 )
 
 type Thresh struct {
@@ -32,47 +34,47 @@ type Thresh struct {
 	Thresholds     map[string]int64
 }
 
-func (cl *Cyclone) Lookup(lookup string) map[string]Thresh {
-	thr := cl.getThreshold(lookup)
+func (c *Cyclone) Lookup(lookup string) map[string]Thresh {
+	thr := c.getThreshold(lookup)
 	if thr != nil {
 		return thr
 	}
-	dat := cl.fetchFromLookupService(lookup)
+	dat := c.fetchFromLookupService(lookup)
 	if dat == nil {
-		cl.logger.Errorf("Cyclone[%d], ERROR Lookup received nil from fetcher for %s", cl.Num, lookup)
-		cl.storeUnconfigured(lookup)
+		logrus.Errorf("Cyclone[%d], ERROR Lookup received nil from fetcher for %s", c.Num, lookup)
+		c.storeUnconfigured(lookup)
 		return nil
 	}
-	cl.processThresholdData(lookup, dat)
-	thr = cl.getThreshold(lookup)
+	c.processThresholdData(lookup, dat)
+	thr = c.getThreshold(lookup)
 	return thr
 }
 
-func (cl *Cyclone) getThreshold(lookup string) map[string]Thresh {
+func (c *Cyclone) getThreshold(lookup string) map[string]Thresh {
 	res := make(map[string]Thresh)
-	mapdata, err := cl.Redis.HGetAllMap(lookup).Result()
+	mapdata, err := c.redis.HGetAllMap(lookup).Result()
 	if err != nil {
-		cl.logger.Errorf("Cyclone[%d], ERROR reading from redis for %s: %s", cl.Num, lookup, err)
+		logrus.Errorf("Cyclone[%d], ERROR reading from redis for %s: %s", c.Num, lookup, err)
 		return nil
 	}
 	if len(mapdata) == 0 {
-		cl.logger.Infof("Cyclone[%d], no entry in redis for %s", cl.Num, lookup)
+		logrus.Infof("Cyclone[%d], no entry in redis for %s", c.Num, lookup)
 		return nil
 	}
 	for k := range mapdata {
 		if k == `unconfigured` {
-			cl.logger.Debugf("Cyclone[%d], Found negative caching in redis for %s", cl.Num, lookup)
+			logrus.Debugf("Cyclone[%d], Found negative caching in redis for %s", c.Num, lookup)
 			continue
 		}
-		val, err := cl.Redis.Get(k).Result()
+		val, err := c.redis.Get(k).Result()
 		if err != nil {
-			cl.logger.Errorf("Cyclone[%d], ERROR reading from redis for %s: %s", cl.Num, lookup, err)
+			logrus.Errorf("Cyclone[%d], ERROR reading from redis for %s: %s", c.Num, lookup, err)
 			return nil
 		}
 		t := Thresh{}
 		err = json.Unmarshal([]byte(val), &t)
 		if err != nil {
-			cl.logger.Errorf("Cyclone[%d], ERROR decoding threshold from redis for %s: %s", cl.Num, lookup, err)
+			logrus.Errorf("Cyclone[%d], ERROR decoding threshold from redis for %s: %s", c.Num, lookup, err)
 			return nil
 		}
 		res[t.ID] = t
@@ -80,33 +82,33 @@ func (cl *Cyclone) getThreshold(lookup string) map[string]Thresh {
 	return res
 }
 
-func (cl *Cyclone) fetchFromLookupService(lookup string) *ThresholdConfig {
-	cl.logger.Debugf("Cyclone[%d], Looking up configuration data for %s", cl.Num, lookup)
+func (c *Cyclone) fetchFromLookupService(lookup string) *ThresholdConfig {
+	logrus.Debugf("Cyclone[%d], Looking up configuration data for %s", c.Num, lookup)
 	client := &http.Client{}
 	req, err := http.NewRequest(`GET`, fmt.Sprintf(
 		"http://%s:%s/%s/%s",
-		cl.CfgLookupHost,
-		cl.CfgLookupPort,
-		cl.CfgLookupPath,
+		c.Config.Cyclone.LookupHost,
+		c.Config.Cyclone.LookupPort,
+		c.Config.Cyclone.LookupPath,
 		lookup,
 	), nil)
 	if err != nil {
-		cl.logger.Errorf("Cyclone[%d], ERROR assembling lookup request: %s", cl.Num, err)
+		logrus.Errorf("Cyclone[%d], ERROR assembling lookup request: %s", c.Num, err)
 		return nil
 	}
 
 	if resp, err := client.Do(req); err != nil {
-		cl.logger.Errorf("Cyclone[%d], ERROR during lookup request: %s", cl.Num, err)
+		logrus.Errorf("Cyclone[%d], ERROR during lookup request: %s", c.Num, err)
 		return nil
 	} else if resp.StatusCode == 404 {
-		cl.logger.Debugf("Cyclone[%d], no configurations for %s", cl.Num, lookup)
-		cl.storeUnconfigured(lookup)
+		logrus.Debugf("Cyclone[%d], no configurations for %s", c.Num, lookup)
+		c.storeUnconfigured(lookup)
 		return &ThresholdConfig{}
 	} else {
 		var buf []byte
 		buf, err = ioutil.ReadAll(resp.Body)
 		if err != nil {
-			cl.logger.Errorf("Cyclone[%d], ERROR reading result body for %s: %s", cl.Num, lookup, err)
+			logrus.Errorf("Cyclone[%d], ERROR reading result body for %s: %s", c.Num, lookup, err)
 			return nil
 		}
 		resp.Body.Close()
@@ -114,19 +116,19 @@ func (cl *Cyclone) fetchFromLookupService(lookup string) *ThresholdConfig {
 		d := &ThresholdConfig{}
 		err = json.Unmarshal(buf, d)
 		if err != nil {
-			cl.logger.Errorf("Cyclone[%d], ERROR decoding result body for %s: %s", cl.Num, lookup, err)
+			logrus.Errorf("Cyclone[%d], ERROR decoding result body for %s: %s", c.Num, lookup, err)
 			return nil
 		}
 		return d
 	}
 }
 
-func (cl *Cyclone) processThresholdData(lookup string, t *ThresholdConfig) {
+func (c *Cyclone) processThresholdData(lookup string, t *ThresholdConfig) {
 	if t.Configurations == nil {
 		return
 	}
 	if len(t.Configurations) == 0 {
-		cl.storeUnconfigured(lookup)
+		c.storeUnconfigured(lookup)
 		return
 	}
 	for _, i := range t.Configurations {
@@ -147,39 +149,39 @@ func (cl *Cyclone) processThresholdData(lookup string, t *ThresholdConfig) {
 			t.Predicate = l.Predicate
 			t.Thresholds[lvl] = l.Value
 		}
-		cl.storeThreshold(lookup, &t)
+		c.storeThreshold(lookup, &t)
 	}
 }
 
-func (cl *Cyclone) storeThreshold(lookup string, t *Thresh) {
+func (c *Cyclone) storeThreshold(lookup string, t *Thresh) {
 	buf, err := json.Marshal(t)
 	if err != nil {
-		cl.logger.Errorf("%s: ERROR (storeThreshold) converting threshold data: %s", lookup, err)
+		logrus.Errorf("%s: ERROR (storeThreshold) converting threshold data: %s", lookup, err)
 		return
 	}
-	cl.Redis.Set(t.ID, string(buf), 1440*time.Second)
+	c.redis.Set(t.ID, string(buf), 1440*time.Second)
 
-	cl.Redis.HSet(lookup, t.ID, time.Now().UTC().Format(time.RFC3339))
-	cl.Redis.Expire(lookup, 1440*time.Second)
+	c.redis.HSet(lookup, t.ID, time.Now().UTC().Format(time.RFC3339))
+	c.redis.Expire(lookup, 1440*time.Second)
 }
 
-func (cl *Cyclone) updateEval(id string) {
-	cl.Redis.HSet(`evaluation`, id, time.Now().UTC().Format(time.RFC3339))
+func (c *Cyclone) updateEval(id string) {
+	c.redis.HSet(`evaluation`, id, time.Now().UTC().Format(time.RFC3339))
 }
 
-func (cl *Cyclone) heartbeat() {
-	cl.logger.Debugf("Cyclone[%d], Updating cyclone heartbeat", cl.Num)
-	if _, err := cl.Redis.HSet(`heartbeat`, `cyclone-alive`, time.Now().UTC().Format(time.RFC3339)).Result(); err != nil {
-		cl.logger.Errorf("Cyclone[%d], ERROR setting heartbeat in redis: %s", cl.Num, err)
+func (c *Cyclone) heartbeat() {
+	logrus.Debugf("Cyclone[%d], Updating cyclone heartbeat", c.Num)
+	if _, err := c.redis.HSet(`heartbeat`, `cyclone-alive`, time.Now().UTC().Format(time.RFC3339)).Result(); err != nil {
+		logrus.Errorf("Cyclone[%d], ERROR setting heartbeat in redis: %s", c.Num, err)
 	}
-	if _, err := cl.Redis.HSet(`heartbeat`, fmt.Sprintf("cyclone-alive-%d", cl.Num), time.Now().UTC().Format(time.RFC3339)).Result(); err != nil {
-		cl.logger.Errorf("Cyclone[%d], ERROR setting heartbeat in redis: %s", cl.Num, err)
+	if _, err := c.redis.HSet(`heartbeat`, fmt.Sprintf("cyclone-alive-%d", c.Num), time.Now().UTC().Format(time.RFC3339)).Result(); err != nil {
+		logrus.Errorf("Cyclone[%d], ERROR setting heartbeat in redis: %s", c.Num, err)
 	}
 }
 
-func (cl *Cyclone) storeUnconfigured(lookup string) {
-	cl.Redis.HSet(lookup, `unconfigured`, time.Now().UTC().Format(time.RFC3339))
-	cl.Redis.Expire(lookup, 1440*time.Second)
+func (c *Cyclone) storeUnconfigured(lookup string) {
+	c.redis.HSet(lookup, `unconfigured`, time.Now().UTC().Format(time.RFC3339))
+	c.redis.Expire(lookup, 1440*time.Second)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix

@@ -18,26 +18,18 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"syscall"
 	"time"
 
-	"github.com/Shopify/sarama"
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/cyclone/lib/cyclone"
-	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
-	metrics "github.com/rcrowley/go-metrics"
-	"github.com/wvanbergen/kafka/consumergroup"
-	"github.com/wvanbergen/kazoo-go"
+	"github.com/rcrowley/go-metrics"
 )
 
 var githash, shorthash, builddate, buildtime string
-var connected bool
-var reconnectAttempts int
-var reconnectTimeout [5]int
 
 func init() {
 	// Discard logspam from Zookeeper library
@@ -48,8 +40,6 @@ func init() {
 
 	// redirect go default logger to /dev/null
 	log.SetOutput(ioutil.Discard)
-
-	reconnectTimeout = [5]int{5, 10, 20, 30, 60}
 }
 
 func main() {
@@ -72,294 +62,148 @@ func main() {
 		os.Exit(0)
 	}
 
-	// load configuration file
-	conf := erebos.Config{}
-	if err = conf.FromFile(configFlag); err != nil {
+	// read runtime configuration
+	cyConf := erebos.Config{}
+	if err = cyConf.FromFile(configFlag); err != nil {
 		logrus.Fatalf("Could not open configuration: %s", err)
 	}
 
 	// setup logfile
 	if logFH, err = reopen.NewFileWriter(
-		filepath.Join(conf.Log.Path, conf.Log.File),
+		filepath.Join(cyConf.Log.Path, cyConf.Log.File),
 	); err != nil {
 		logrus.Fatalf("Unable to open logfile: %s", err)
 	} else {
-		conf.Log.FH = logFH
+		cyConf.Log.FH = logFH
 	}
-	logrus.SetOutput(conf.Log.FH)
+	logrus.SetOutput(cyConf.Log.FH)
+	logrus.Infoln(`Starting CYCLONE...`)
 
-	if conf.Log.Debug {
+	// switch to requested loglevel
+	if cyConf.Log.Debug {
 		logrus.SetLevel(logrus.DebugLevel)
 	} else {
 		logrus.SetLevel(logrus.WarnLevel)
 	}
 
-	// register signal handler for logrotate on SIGUSR2
-	if conf.Log.Rotate {
+	// signal handler will reopen logfile on USR2 if requested
+	if cyConf.Log.Rotate {
 		sigChanLogRotate := make(chan os.Signal, 1)
 		signal.Notify(sigChanLogRotate, syscall.SIGUSR2)
-		go erebos.Logrotate(sigChanLogRotate, conf)
+		go erebos.Logrotate(sigChanLogRotate, cyConf)
 	}
 
-	// register signal handler for shutdown on SIGINT/SIGTERM
+	// setup signal receiver for graceful shutdown
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 
-	config := consumergroup.NewConfig()
-	switch conf.Kafka.ConsumerOffsetStrategy {
-	case `Oldest`, `oldest`:
-	case `Newest`, `newest`:
-		config.Offsets.Initial = sarama.OffsetNewest
-	default:
-		logrus.Fatalf("Invalid consumer strategy: %s",
-			conf.Kafka.ConsumerOffsetStrategy)
-	}
-	config.Offsets.ProcessingTimeout = 10 * time.Second
-	config.Offsets.CommitInterval = time.Duration(
-		conf.Zookeeper.CommitInterval,
-	) * time.Millisecond
-	config.Offsets.ResetOffsets = conf.Zookeeper.ResetOffset
+	// this channel is used by the handlers on error
+	handlerDeath := make(chan error)
+	// this channel is used to signal the consumer to stop
+	consumerShutdown := make(chan struct{})
+	// this channel will be closed by the consumer
+	consumerExit := make(chan struct{})
 
 	// setup metrics
 	var metricPrefix string
-	switch conf.Misc.InstanceName {
+	switch cyConf.Misc.InstanceName {
 	case ``:
 		metricPrefix = `/cyclone`
 	default:
-		metricPrefix = fmt.Sprintf("/cyclone/%s",
-			conf.Misc.InstanceName)
+		metricPrefix = fmt.Sprintf("/cyclone/%s", cyConf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
-	metrics.NewRegisteredMeter(`/consumed/metrics`, pfxRegistry)
+	metrics.NewRegisteredMeter(`/metrics/consumed`, pfxRegistry)
+	metrics.NewRegisteredMeter(`/metrics/processed`, pfxRegistry)
 	metrics.NewRegisteredMeter(`/evaluations`, pfxRegistry)
 	metrics.NewRegisteredMeter(`/alarms`, pfxRegistry)
 
-	handlerDeath := make(chan error)
-	ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath, cyclone.FormatMetrics)
-	if conf.Misc.ProduceMetrics {
+	// start metric socket
+	ms := legacy.NewMetricSocket(&cyConf, &pfxRegistry, handlerDeath, cyclone.FormatMetrics)
+	if cyConf.Misc.ProduceMetrics {
 		logrus.Info(`Launched metrics producer socket`)
 		go ms.Run()
 	}
 
-	var zkNodes []string
-
-	zkNodes, config.Zookeeper.Chroot = kazoo.ParseConnectionString(conf.Zookeeper.Connect)
-	logrus.Debug(`Using ZK chroot: `, config.Zookeeper.Chroot)
-
-	topic := strings.Split(conf.Kafka.ConsumerTopics, `,`)
-
-	eventCount := 0
-	mtrCount := metrics.GetOrRegisterMeter(`/consumed/metrics`, pfxRegistry)
-	offsets := make(map[string]map[int32]int64)
-	handlers := make(map[int]cyclone.Cyclone)
+	cyclone.AgeCutOff = time.Duration(cyConf.Cyclone.MetricsMaxAge) * time.Minute * -1
 
 	for i := 0; i < runtime.NumCPU(); i++ {
-		logrus.Infof("MAIN, Starting cyclone handler %d", i)
-		cChan := make(chan *metric.Metric)
-		cl := cyclone.Cyclone{
-			Num:                 i,
-			Input:               cChan,
-			CfgRedisConnect:     conf.Redis.Connect,
-			CfgRedisPassword:    conf.Redis.Password,
-			CfgRedisDB:          conf.Redis.DB,
-			CfgAlarmDestination: conf.Cyclone.DestinationURI,
-			CfgLookupHost:       conf.Cyclone.LookupHost,
-			CfgLookupPort:       conf.Cyclone.LookupPort,
-			CfgLookupPath:       conf.Cyclone.LookupPath,
-			CfgAPIVersion:       conf.Cyclone.APIVersion,
-			TestMode:            conf.Cyclone.TestMode,
-			Metrics:             &pfxRegistry,
+		h := cyclone.Cyclone{
+			Num:      i,
+			Input:    make(chan *erebos.Transport, cyConf.Cyclone.HandlerQueueLength),
+			Shutdown: make(chan struct{}),
+			Death:    handlerDeath,
+			Config:   &cyConf,
+			Metrics:  &pfxRegistry,
 		}
-		cl.SetLog(logrus.StandardLogger())
-		handlers[i] = cl
-		go cl.Run()
+		cyclone.Handlers[i] = &h
+		go h.Start()
+		logrus.Infof("Launched Cyclone handler #%d", i)
 	}
+
+	// start kafka consumer
+	go erebos.Consumer(
+		&cyConf,
+		wrappedDispatch(&pfxRegistry, cyclone.Dispatch),
+		consumerShutdown,
+		consumerExit,
+		handlerDeath,
+	)
 
 	heartbeat := time.Tick(5 * time.Second)
 	beatcount := 0
 
-	ageCutOff := time.Duration(conf.Cyclone.MetricsMaxAge) * time.Minute * -1
-
-reconnect:
-	consumer, err := consumergroup.JoinConsumerGroup(conf.Kafka.ConsumerGroup, topic, zkNodes, config)
-	if err != nil {
-		logrus.Fatalln(err)
-	}
-
+	// the main loop
+	fault := false
 runloop:
 	for {
 		select {
-		case <-c:
-			// SIGINT/SIGTERM
-			break runloop
 		case err := <-ms.Errors:
 			logrus.Errorf("Socket error: %s", err.Error())
+		case <-c:
+			logrus.Infoln(`Received shutdown signal`)
+			break runloop
 		case err := <-handlerDeath:
 			logrus.Errorf("Handler died: %s", err.Error())
+			fault = true
 			break runloop
 		case <-heartbeat:
 			// 32bit time_t held 68years at one tick per second. This should
 			// hold 2^32 * 5 * 68 years till overflow
-			num := beatcount % runtime.NumCPU()
+			cyclone.Handlers[beatcount%runtime.NumCPU()].InputChannel() <- newHeartbeat()
 			beatcount++
-			handlers[num].Input <- &metric.Metric{
-				Path: `_internal.cyclone.heartbeat`,
-			}
-			continue runloop
-		case e := <-consumer.Errors():
-			logrus.Errorln(e)
-			if err := consumer.Close(); err != nil {
-				logrus.Errorln(err)
-			}
-			goto reconnect
-		case message := <-consumer.Messages():
-			if offsets[message.Topic] == nil {
-				offsets[message.Topic] = make(map[int32]int64)
-			}
-
-			logrus.Debugf("MAIN, Received topic:%s/partition:%d/offset:%d",
-				message.Topic, message.Partition, message.Offset)
-
-			eventCount++
-			mtrCount.Mark(1)
-			if offsets[message.Topic][message.Partition] != 0 &&
-				offsets[message.Topic][message.Partition] != message.Offset-1 {
-				logrus.Errorf("MAIN ERROR, Unexpected offset on %s:%d. Expected %d, found %d, diff %d.",
-					message.Topic, message.Partition,
-					offsets[message.Topic][message.Partition]+1, message.Offset,
-					message.Offset-offsets[message.Topic][message.Partition]+1,
-				)
-			}
-
-			m, err := metric.FromBytes(message.Value)
-			if err != nil {
-				logrus.Errorf("MAIN ERROR, Decoding metric data: %s", err)
-				offsets[message.Topic][message.Partition] = message.Offset
-				consumer.CommitUpto(message)
-				continue
-			}
-
-			// ignored metrics
-			switch m.Path {
-			case `/sys/disk/fs`:
-				fallthrough
-			case `/sys/disk/mounts`:
-				fallthrough
-			case `/sys/net/mac`:
-				fallthrough
-			case `/sys/net/rx_bytes`:
-				fallthrough
-			case `/sys/net/rx_packets`:
-				fallthrough
-			case `/sys/net/tx_bytes`:
-				fallthrough
-			case `/sys/net/tx_packets`:
-				fallthrough
-			case `/sys/memory/swapcached`:
-				fallthrough
-			case `/sys/load/last_pid`:
-				fallthrough
-			case `/sys/cpu/idletime`:
-				fallthrough
-			case `/sys/cpu/MHz`:
-				fallthrough
-			case `/sys/net/bondslave`:
-				fallthrough
-			case `/sys/net/connstates/ipv4`:
-				fallthrough
-			case `/sys/net/connstates/ipv6`:
-				fallthrough
-			case `/sys/net/duplex`:
-				fallthrough
-			case `/sys/net/ipv4_addr`:
-				fallthrough
-			case `/sys/net/ipv6_addr`:
-				fallthrough
-			case `/sys/net/speed`:
-				fallthrough
-			case `/sys/net/ipvs/conn/count`:
-				fallthrough
-			case `/sys/net/ipvs/conn/servercount`:
-				fallthrough
-			case `/sys/net/ipvs/conn/serverstatecount`:
-				fallthrough
-			case `/sys/net/ipvs/conn/statecount`:
-				fallthrough
-			case `/sys/net/ipvs/conn/vipconns`:
-				fallthrough
-			case `/sys/net/ipvs/conn/vipstatecount`:
-				fallthrough
-			case `/sys/net/ipvs/count`:
-				fallthrough
-			case `/sys/net/ipvs/detail`:
-				fallthrough
-			case `/sys/net/ipvs/state`:
-				fallthrough
-			case `/sys/net/quagga/bgp/announce`:
-				fallthrough
-			case `/sys/net/quagga/bgp/connage`:
-				fallthrough
-			case `/sys/net/quagga/bgp/connstate`:
-				fallthrough
-			case `/sys/net/quagga/bgp/neighbour`:
-				m = nil
-			}
-			if m == nil {
-				logrus.Debugln(`MAIN, Ignoring received metric`)
-				offsets[message.Topic][message.Partition] = message.Offset
-				consumer.CommitUpto(message)
-				continue
-			}
-
-			// ignore metrics that are simply too old for useful
-			// alerting
-			if time.Now().UTC().Add(ageCutOff).After(m.TS.UTC()) {
-				logrus.Warnln("MAIN ERROR, Skipping metric due to age: %s", m.TS.UTC().Format(time.RFC3339))
-				offsets[message.Topic][message.Partition] = message.Offset
-				consumer.CommitUpto(message)
-				continue
-			}
-
-			handlers[int(m.AssetID)%runtime.NumCPU()].Input <- m
-
-			offsets[message.Topic][message.Partition] = message.Offset
-			consumer.CommitUpto(message)
 		}
 	}
+
+	// close all handlers
 	close(ms.Shutdown)
-	if err := consumer.Close(); err != nil {
-		logrus.Error("Error closing the consumer", err)
+	close(consumerShutdown)
+	<-consumerExit // not safe to close InputChannel before consumer is gone
+	for i := range cyclone.Handlers {
+		close(cyclone.Handlers[i].ShutdownChannel())
+		close(cyclone.Handlers[i].InputChannel())
 	}
 
-	// give handler routines a chance to finish their work
-	time.Sleep(2 * time.Second)
-	logrus.Infof("Processed %d events.", eventCount)
-	logrus.Infof("%+v", offsets)
-}
-
-func reconnect(name string, topics, zookeeper []string, config *consumergroup.Config) *consumergroup.ConsumerGroup {
-	var consumer *consumergroup.ConsumerGroup
-	var err error
-
-retry:
-	consumer, err = consumergroup.JoinConsumerGroup(name, topics, zookeeper, config)
-	if err != nil && !connected {
-		// failed to join on startup
-		logrus.Fatalln(err)
-	} else if err != nil && reconnectAttempts < 5 {
-		// attempt to reconnect
-		logrus.Errorln(err)
-		time.Sleep(time.Duration(reconnectTimeout[reconnectAttempts]) * time.Second)
-		reconnectAttempts++
-		goto retry
-	} else if err != nil {
-		// exhausted reconnect attempts - give up
-		logrus.Fatalln(err)
+	// read all additional handler errors if required
+drainloop:
+	for {
+		select {
+		case err := <-ms.Errors:
+			logrus.Errorf("Socket error: %s", err.Error())
+		case err := <-handlerDeath:
+			logrus.Errorf("Handler died: %s", err.Error())
+		case <-time.After(time.Millisecond * 10):
+			break drainloop
+		}
 	}
-	connected = true
-	reconnectAttempts = 0
-	logrus.Info(`Successfully connected to consumergroup`)
-	return consumer
+
+	// give goroutines that were blocked on handlerDeath channel
+	// a chance to exit
+	<-time.After(time.Millisecond * 10)
+	logrus.Infoln(`CYCLONE shutdown complete`)
+	if fault {
+		os.Exit(1)
+	}
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix
