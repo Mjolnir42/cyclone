@@ -12,7 +12,7 @@ import (
 	"math"
 	"time"
 
-	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
+	"github.com/mjolnir42/legacy"
 )
 
 type CPU struct {
@@ -49,7 +49,7 @@ func (c *Counter) valid() bool {
 		c.SetSoftIrq && c.SetSystem && c.SetUser
 }
 
-func (c *CPU) Update(m *metric.Metric) {
+func (c *CPU) Update(m *legacy.MetricSplit) {
 	// ignore metrics for other paths
 	switch m.Path {
 	case `/sys/cpu/count/idle`:
@@ -127,7 +127,7 @@ processing:
 	}
 }
 
-func (c *CPU) Calculate() *metric.Metric {
+func (c *CPU) Calculate() *legacy.MetricSplit {
 	if c.NextTime.IsZero() {
 		return nil
 	}
@@ -174,14 +174,14 @@ func (c *CPU) nextToCurrent() {
 	c.Next = Counter{}
 }
 
-func (c *CPU) emitMetric() *metric.Metric {
-	return &metric.Metric{
+func (c *CPU) emitMetric() *legacy.MetricSplit {
+	return &legacy.MetricSplit{
 		AssetID: c.AssetID,
 		Path:    `cpu.usage.percent`,
 		TS:      c.CurrTime,
 		Type:    `real`,
 		Unit:    `%`,
-		Val: metric.Value{
+		Val: legacy.MetricValue{
 			FlpVal: c.Usage,
 		},
 	}

@@ -15,7 +15,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
+	"github.com/mjolnir42/legacy"
 )
 
 type Disk struct {
@@ -46,7 +46,7 @@ func (d *Counter) valid() bool {
 	return d.SetBlkTotal && d.SetBlkUsed && d.SetBlkRead && d.SetBlkWrite
 }
 
-func (d *Disk) Update(m *metric.Metric) {
+func (d *Disk) Update(m *legacy.MetricSplit) {
 	// ignore metrics for other paths
 	switch m.Path {
 	case `/sys/disk/blk_total`:
@@ -112,7 +112,7 @@ processing:
 	}
 }
 
-func (d *Disk) Calculate() []*metric.Metric {
+func (d *Disk) Calculate() []*legacy.MetricSplit {
 	if d.NextTime.IsZero() {
 		return nil
 	}
@@ -165,45 +165,45 @@ func (d *Disk) nextToCurrent() {
 	d.Next = Counter{}
 }
 
-func (d *Disk) emitMetric() []*metric.Metric {
-	return []*metric.Metric{
-		&metric.Metric{
+func (d *Disk) emitMetric() []*legacy.MetricSplit {
+	return []*legacy.MetricSplit{
+		&legacy.MetricSplit{
 			AssetID: d.AssetID,
 			Path:    fmt.Sprintf("disk.write.per.second:%s", d.Mountpoint),
 			TS:      d.CurrTime,
 			Type:    `real`,
 			Unit:    `B`,
-			Val: metric.Value{
+			Val: legacy.MetricValue{
 				FlpVal: d.WriteBps,
 			},
 		},
-		&metric.Metric{
+		&legacy.MetricSplit{
 			AssetID: d.AssetID,
 			Path:    fmt.Sprintf("disk.read.per.second:%s", d.Mountpoint),
 			TS:      d.CurrTime,
 			Type:    `real`,
 			Unit:    `B`,
-			Val: metric.Value{
+			Val: legacy.MetricValue{
 				FlpVal: d.ReadBps,
 			},
 		},
-		&metric.Metric{
+		&legacy.MetricSplit{
 			AssetID: d.AssetID,
 			Path:    fmt.Sprintf("disk.free:%s", d.Mountpoint),
 			TS:      d.CurrTime,
 			Type:    `integer`,
 			Unit:    `B`,
-			Val: metric.Value{
+			Val: legacy.MetricValue{
 				IntVal: d.BytesFree,
 			},
 		},
-		&metric.Metric{
+		&legacy.MetricSplit{
 			AssetID: d.AssetID,
 			Path:    fmt.Sprintf("disk.usage.percent:%s", d.Mountpoint),
 			TS:      d.CurrTime,
 			Type:    `real`,
 			Unit:    `%`,
-			Val: metric.Value{
+			Val: legacy.MetricValue{
 				FlpVal: d.Usage,
 			},
 		},

@@ -24,8 +24,8 @@ import (
 	"github.com/mjolnir42/cyclone/lib/cyclone/cpu"
 	"github.com/mjolnir42/cyclone/lib/cyclone/disk"
 	"github.com/mjolnir42/cyclone/lib/cyclone/mem"
-	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
 	"gopkg.in/redis.v3"
 )
@@ -54,9 +54,10 @@ type Cyclone struct {
 	CTXData       map[int64]cpu.CTX
 	DskData       map[int64]map[string]disk.Disk
 	redis         *redis.Client
-	internalInput chan *metric.Metric
+	internalInput chan *legacy.MetricSplit
 }
 
+// AlarmEvent is the datatype for sending out alarm notifications
 type AlarmEvent struct {
 	Source     string `json:"source"`
 	EventID    string `json:"event_id"`
@@ -119,8 +120,8 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		return nil
 	}
 
-	m, err := metric.FromBytes(msg.Value)
-	if err != nil {
+	m := &legacy.MetricSplit{}
+	if err := json.Unmarshal(msg.Value, m); err != nil {
 		return err
 	}
 

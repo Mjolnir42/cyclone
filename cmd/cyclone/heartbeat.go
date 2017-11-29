@@ -11,15 +11,15 @@ package main // import "github.com/mjolnir42/cyclone/cmd/cyclone"
 import (
 	"encoding/json"
 
-	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/legacy"
 )
 
 // newHeartbeat returns a heartbeat message wrapped for processing by a
 // cyclone handler
 func newHeartbeat() *erebos.Transport {
 	msg := &erebos.Transport{}
-	msg.Value, _ = json.Marshal(&metric.Metric{Path: `_internal.cyclone.heartbeat`})
+	msg.Value, _ = json.Marshal(&legacy.MetricSplit{Path: `_internal.cyclone.heartbeat`})
 	return msg
 }
 

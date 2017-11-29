@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
+	"github.com/mjolnir42/legacy"
 )
 
 type Mem struct {
@@ -50,7 +50,7 @@ func (m *Distribution) valid() bool {
 		m.SetFree && m.SetInActive && m.SetSwapFree && m.SetSwapTotal
 }
 
-func (m *Mem) Update(mtr *metric.Metric) {
+func (m *Mem) Update(mtr *legacy.MetricSplit) {
 	// ignore metrics for other paths
 	switch mtr.Path {
 	case `/sys/memory/active`:
@@ -120,7 +120,7 @@ processing:
 	}
 }
 
-func (m *Mem) Calculate() *metric.Metric {
+func (m *Mem) Calculate() *legacy.MetricSplit {
 	if m.NextTime.IsZero() || !m.Next.valid() {
 		return nil
 	}
@@ -148,14 +148,14 @@ func (m *Mem) nextToCurrent() {
 	m.Next = Distribution{}
 }
 
-func (m *Mem) emitMetric() *metric.Metric {
-	return &metric.Metric{
+func (m *Mem) emitMetric() *legacy.MetricSplit {
+	return &legacy.MetricSplit{
 		AssetID: m.AssetID,
 		Path:    `memory.usage.percent`,
 		TS:      m.CurrTime,
 		Type:    `real`,
 		Unit:    `%`,
-		Val: metric.Value{
+		Val: legacy.MetricValue{
 			FlpVal: m.Usage,
 		},
 	}

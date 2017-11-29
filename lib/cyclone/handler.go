@@ -14,8 +14,8 @@ import (
 	"github.com/mjolnir42/cyclone/lib/cyclone/cpu"
 	"github.com/mjolnir42/cyclone/lib/cyclone/disk"
 	"github.com/mjolnir42/cyclone/lib/cyclone/mem"
-	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/legacy"
 	"gopkg.in/redis.v3"
 )
 
@@ -33,7 +33,7 @@ func (c *Cyclone) Start() {
 	c.MemData = make(map[int64]mem.Mem)
 	c.CTXData = make(map[int64]cpu.CTX)
 	c.DskData = make(map[int64]map[string]disk.Disk)
-	c.internalInput = make(chan *metric.Metric, 32)
+	c.internalInput = make(chan *legacy.MetricSplit, 32)
 	c.redis = redis.NewClient(&redis.Options{
 		Addr:     c.Config.Redis.Connect,
 		Password: c.Config.Redis.Password,

@@ -8,18 +8,19 @@
 
 package cyclone // import "github.com/mjolnir42/cyclone/lib/cyclone"
 import (
+	"encoding/json"
 	"runtime"
 	"time"
 
-	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/legacy"
 )
 
 // Dispatch implements erebos.Dispatcher
 func Dispatch(msg erebos.Transport) error {
-	// decode embedded cyclone.Metric
-	m, err := metric.FromBytes(msg.Value)
-	if err != nil {
+	// decode embedded legacy.MetricSplit
+	m := &legacy.MetricSplit{}
+	if err := json.Unmarshal(msg.Value, m); err != nil {
 		return err
 	}
 	msg.HostID = int(m.AssetID)

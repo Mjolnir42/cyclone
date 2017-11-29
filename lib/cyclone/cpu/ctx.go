@@ -11,7 +11,7 @@ package cpu // import "github.com/mjolnir42/cyclone/lib/cyclone/cpu"
 import (
 	"time"
 
-	"github.com/mjolnir42/cyclone/lib/cyclone/metric"
+	"github.com/mjolnir42/legacy"
 )
 
 type CTX struct {
@@ -23,7 +23,7 @@ type CTX struct {
 	NextTime  time.Time
 }
 
-func (c *CTX) Update(m *metric.Metric) *metric.Metric {
+func (c *CTX) Update(m *legacy.MetricSplit) *legacy.MetricSplit {
 	// ignore metrics for other paths
 	switch m.Path {
 	case `/sys/cpu/ctx`:
@@ -55,7 +55,7 @@ func (c *CTX) Update(m *metric.Metric) *metric.Metric {
 	return c.calculate()
 }
 
-func (c *CTX) calculate() *metric.Metric {
+func (c *CTX) calculate() *legacy.MetricSplit {
 	ctx := c.NextValue - c.CurrValue
 	delta := c.NextTime.Sub(c.CurrTime).Seconds()
 
@@ -73,14 +73,14 @@ func (c *CTX) nextToCurrent() {
 	c.NextTime = time.Time{}
 }
 
-func (c *CTX) emitMetric() *metric.Metric {
-	return &metric.Metric{
+func (c *CTX) emitMetric() *legacy.MetricSplit {
+	return &legacy.MetricSplit{
 		AssetID: c.AssetID,
 		Path:    `cpu.ctx.per.second`,
 		TS:      c.CurrTime,
 		Type:    `real`,
 		Unit:    `#`,
-		Val: metric.Value{
+		Val: legacy.MetricValue{
 			FlpVal: c.Cps,
 		},
 	}

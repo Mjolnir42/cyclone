@@ -12,7 +12,6 @@ validate:
 	@go tool vet -shadow lib/cyclone/cpu/
 	@go tool vet -shadow lib/cyclone/disk/
 	@go tool vet -shadow lib/cyclone/mem/
-	@go tool vet -shadow lib/cyclone/metric/
 	@golint ./cmd/...
 	@golint ./lib/...
 	@ineffassign cmd/cyclone/
@@ -20,7 +19,6 @@ validate:
 	@ineffassign lib/cyclone/cpu/
 	@ineffassign lib/cyclone/disk/
 	@ineffassign lib/cyclone/mem/
-	@ineffassign lib/cyclone/metric/
 
 freebsd:
 	@env GOOS=freebsd GOARCH=amd64 go install -ldflags "-X main.buildtime=`date -u +%Y-%m-%dT%H:%M:%S%z` -X main.githash=`git rev-parse HEAD` -X main.shorthash=`git rev-parse --short HEAD` -X main.builddate=`date -u +%Y%m%d`" ./...
