@@ -17,37 +17,15 @@ import (
 	"github.com/mjolnir42/legacy"
 )
 
+// Mem implements the metric evaluation and accounting for monitoring
+// of memory metrics
 type Mem struct {
 	AssetID  int64
-	Curr     Distribution
-	Next     Distribution
+	Curr     distribution
+	Next     distribution
 	CurrTime time.Time
 	NextTime time.Time
 	Usage    float64
-}
-
-type Distribution struct {
-	SetTotal     bool
-	SetActive    bool
-	SetBuffers   bool
-	SetCached    bool
-	SetFree      bool
-	SetInActive  bool
-	SetSwapFree  bool
-	SetSwapTotal bool
-	Total        int64
-	Active       int64
-	Buffers      int64
-	Cached       int64
-	Free         int64
-	InActive     int64
-	SwapFree     int64
-	SwapTotal    int64
-}
-
-func (m *Distribution) valid() bool {
-	return m.SetTotal && m.SetActive && m.SetBuffers && m.SetCached &&
-		m.SetFree && m.SetInActive && m.SetSwapFree && m.SetSwapTotal
 }
 
 func (m *Mem) Update(mtr *legacy.MetricSplit) {
@@ -115,7 +93,7 @@ processing:
 	// abandon current next and start new one
 	if m.NextTime.Before(mtr.TS) {
 		m.NextTime = time.Time{}
-		m.Next = Distribution{}
+		m.Next = distribution{}
 		goto processing
 	}
 }
@@ -145,7 +123,7 @@ func (m *Mem) nextToCurrent() {
 	m.NextTime = time.Time{}
 
 	m.Curr = m.Next
-	m.Next = Distribution{}
+	m.Next = distribution{}
 }
 
 func (m *Mem) emitMetric() *legacy.MetricSplit {
@@ -159,6 +137,32 @@ func (m *Mem) emitMetric() *legacy.MetricSplit {
 			FlpVal: m.Usage,
 		},
 	}
+}
+
+// distribution is used to track multiple memory metrics from the same
+// measurement cycle
+type distribution struct {
+	SetTotal     bool
+	SetActive    bool
+	SetBuffers   bool
+	SetCached    bool
+	SetFree      bool
+	SetInActive  bool
+	SetSwapFree  bool
+	SetSwapTotal bool
+	Total        int64
+	Active       int64
+	Buffers      int64
+	Cached       int64
+	Free         int64
+	InActive     int64
+	SwapFree     int64
+	SwapTotal    int64
+}
+
+func (m *distribution) valid() bool {
+	return m.SetTotal && m.SetActive && m.SetBuffers && m.SetCached &&
+		m.SetFree && m.SetInActive && m.SetSwapFree && m.SetSwapTotal
 }
 
 // https://gist.github.com/DavidVaini/10308388
