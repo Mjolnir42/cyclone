@@ -14,6 +14,7 @@ import (
 	"github.com/mjolnir42/legacy"
 )
 
+// CTX implements the logic to compute derived context switch metrics
 type CTX struct {
 	AssetID   int64
 	CurrValue int64
@@ -23,6 +24,9 @@ type CTX struct {
 	NextTime  time.Time
 }
 
+// Update adds m to the next counter tracked by c and returns the
+// derived metric if there is a new derived metric to be computed.
+// Otherwise it returns nil.
 func (c *CTX) Update(m *legacy.MetricSplit) *legacy.MetricSplit {
 	// ignore metrics for other paths
 	switch m.Path {
@@ -55,6 +59,8 @@ func (c *CTX) Update(m *legacy.MetricSplit) *legacy.MetricSplit {
 	return c.calculate()
 }
 
+// calculate computes the derived metric between the current and next
+// context switch counter
 func (c *CTX) calculate() *legacy.MetricSplit {
 	ctx := c.NextValue - c.CurrValue
 	delta := c.NextTime.Sub(c.CurrTime).Seconds()
@@ -66,6 +72,7 @@ func (c *CTX) calculate() *legacy.MetricSplit {
 	return c.emitMetric()
 }
 
+// nextToCurrent advances the measurement cycle within d by one step
 func (c *CTX) nextToCurrent() {
 	c.CurrValue = c.NextValue
 	c.CurrTime = c.NextTime
@@ -73,6 +80,8 @@ func (c *CTX) nextToCurrent() {
 	c.NextTime = time.Time{}
 }
 
+// emitMetric returns the derived metrics for the current measurement
+// cycle
 func (c *CTX) emitMetric() *legacy.MetricSplit {
 	return &legacy.MetricSplit{
 		AssetID: c.AssetID,

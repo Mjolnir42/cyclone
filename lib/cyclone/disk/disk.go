@@ -6,6 +6,11 @@
  * that can be found in the LICENSE file.
  */
 
+// Package disk provides the following derived metrics:
+//	- disk.write.per.second
+//	- disk.read.per.second
+//	- disk.free
+//	- disk.usage.percent
 package disk // import "github.com/mjolnir42/cyclone/lib/cyclone/disk"
 
 import (
@@ -18,10 +23,11 @@ import (
 	"github.com/mjolnir42/legacy"
 )
 
+// Disk implements the logic to compute derived disk metrics
 type Disk struct {
 	AssetID    int64
-	Curr       Counter
-	Next       Counter
+	Curr       counter
+	Next       counter
 	CurrTime   time.Time
 	NextTime   time.Time
 	Mountpoint string
@@ -31,21 +37,7 @@ type Disk struct {
 	BytesFree  int64
 }
 
-type Counter struct {
-	SetBlkTotal bool
-	SetBlkUsed  bool
-	SetBlkRead  bool
-	SetBlkWrite bool
-	BlkTotal    int64
-	BlkUsed     int64
-	BlkRead     int64
-	BlkWrite    int64
-}
-
-func (d *Counter) valid() bool {
-	return d.SetBlkTotal && d.SetBlkUsed && d.SetBlkRead && d.SetBlkWrite
-}
-
+// Update adds m to the next counter tracked by d
 func (d *Disk) Update(m *legacy.MetricSplit) {
 	// ignore metrics for other paths
 	switch m.Path {
@@ -107,11 +99,15 @@ processing:
 	// abandon current next and start new one
 	if d.NextTime.Before(m.TS) {
 		d.NextTime = time.Time{}
-		d.Next = Counter{}
+		d.Next = counter{}
 		goto processing
 	}
 }
 
+// Calculate checks if the next counter has been fully assembled and
+// then calculates the derived metrics, moves the counters forward and
+// returns the derived metrics. If the next counter is not yet complete,
+// it returns nil.
 func (d *Disk) Calculate() []*legacy.MetricSplit {
 	if d.NextTime.IsZero() {
 		return nil
@@ -157,14 +153,16 @@ func (d *Disk) Calculate() []*legacy.MetricSplit {
 	return d.emitMetric()
 }
 
+// nextToCurrent advances the counters within d by one step
 func (d *Disk) nextToCurrent() {
 	d.CurrTime = d.NextTime
 	d.NextTime = time.Time{}
 
 	d.Curr = d.Next
-	d.Next = Counter{}
+	d.Next = counter{}
 }
 
+// emitMetric returns the derived metrics for the current counter
 func (d *Disk) emitMetric() []*legacy.MetricSplit {
 	return []*legacy.MetricSplit{
 		&legacy.MetricSplit{
@@ -208,6 +206,24 @@ func (d *Disk) emitMetric() []*legacy.MetricSplit {
 			},
 		},
 	}
+}
+
+// counter is used to track multiple disk metrics from the same
+// measurement cycle
+type counter struct {
+	SetBlkTotal bool
+	SetBlkUsed  bool
+	SetBlkRead  bool
+	SetBlkWrite bool
+	BlkTotal    int64
+	BlkUsed     int64
+	BlkRead     int64
+	BlkWrite    int64
+}
+
+// valid checks if a counter has been fully populated
+func (d *counter) valid() bool {
+	return d.SetBlkTotal && d.SetBlkUsed && d.SetBlkRead && d.SetBlkWrite
 }
 
 // https://gist.github.com/DavidVaini/10308388

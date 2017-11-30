@@ -1,5 +1,5 @@
 /*-
- * Copyright © 2016-2017, Jörg Pernfuß <code.jpe@gmail.com>
+ * Copyright © 2016,2017, Jörg Pernfuß <code.jpe@gmail.com>
  * All rights reserved.
  *
  * Use of this source code is governed by a 2-clause BSD license
@@ -8,10 +8,17 @@
 
 package cyclone // import "github.com/mjolnir42/cyclone/lib/cyclone"
 
-type ThresholdConfig struct {
+// This file contains an imported copy of the eye protocol structs from
+// soma/cmd/eye/configuration_item.go
+
+// ConfigurationData contains a list of ConfigurationItems as returned
+// by the eye service
+type ConfigurationData struct {
 	Configurations []ConfigurationItem `json:"configurations"`
 }
 
+// ConfigurationItem holds the monitoring profile definition for a check
+// that has to be performed
 type ConfigurationItem struct {
 	ConfigurationItemID string                   `json:"configuration_item_id"`
 	Metric              string                   `json:"metric"`
@@ -23,6 +30,7 @@ type ConfigurationItem struct {
 	Thresholds          []ConfigurationThreshold `json:"thresholds"`
 }
 
+// ConfigurationMetaData contains the metadata for a ConfigurationItem
 type ConfigurationMetaData struct {
 	Monitoring string `json:"monitoring"`
 	Team       string `json:"string"`
@@ -30,6 +38,8 @@ type ConfigurationMetaData struct {
 	Targethost string `json:"targethost"`
 }
 
+// ConfigurationThreshold contains the specification for a threshold of
+// a ConfigurationItem
 type ConfigurationThreshold struct {
 	Predicate string `json:"predicate"`
 	Level     uint16 `json:"level"`

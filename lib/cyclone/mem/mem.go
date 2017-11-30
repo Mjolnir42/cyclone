@@ -6,6 +6,8 @@
  * that can be found in the LICENSE file.
  */
 
+// Package mem provides the following derived metrics:
+//	- memory.usage.percent
 package mem // import "github.com/mjolnir42/cyclone/lib/cyclone/mem"
 
 import (
@@ -28,6 +30,7 @@ type Mem struct {
 	Usage    float64
 }
 
+// Update adds mtr to the next distribution tracked by Mem
 func (m *Mem) Update(mtr *legacy.MetricSplit) {
 	// ignore metrics for other paths
 	switch mtr.Path {
@@ -98,6 +101,10 @@ processing:
 	}
 }
 
+// Calculate checks if the next distribution has been fully assembled
+// and then calculates the memory usage, moves the distribution forward
+// and returns the derived metric. If the distribution is not yet
+// complete, it returns nil.
 func (m *Mem) Calculate() *legacy.MetricSplit {
 	if m.NextTime.IsZero() || !m.Next.valid() {
 		return nil
@@ -118,6 +125,7 @@ func (m *Mem) Calculate() *legacy.MetricSplit {
 	return m.emitMetric()
 }
 
+// nextToCurrent advances the distributions within Mem by one step
 func (m *Mem) nextToCurrent() {
 	m.CurrTime = m.NextTime
 	m.NextTime = time.Time{}
@@ -126,6 +134,8 @@ func (m *Mem) nextToCurrent() {
 	m.Next = distribution{}
 }
 
+// emitMetric returns a legacy.MetricSplit for metric path
+// memory.usage.percent with the m.Usage as value
 func (m *Mem) emitMetric() *legacy.MetricSplit {
 	return &legacy.MetricSplit{
 		AssetID: m.AssetID,
@@ -160,6 +170,7 @@ type distribution struct {
 	SwapTotal    int64
 }
 
+// valid checks if a distribution has been fully populated
 func (m *distribution) valid() bool {
 	return m.SetTotal && m.SetActive && m.SetBuffers && m.SetCached &&
 		m.SetFree && m.SetInActive && m.SetSwapFree && m.SetSwapTotal

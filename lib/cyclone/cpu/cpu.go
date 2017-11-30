@@ -6,6 +6,9 @@
  * that can be found in the LICENSE file.
  */
 
+// Package cpu provides the following derived metrics:
+//	- cpu.ctx.per.second
+//	- cpu.usage.percent
 package cpu // import "github.com/mjolnir42/cyclone/lib/cyclone/cpu"
 
 import (
@@ -15,10 +18,11 @@ import (
 	"github.com/mjolnir42/legacy"
 )
 
+// CPU implements the logic to compute derived cpu usage metrics
 type CPU struct {
 	AssetID  int64
-	Curr     Counter
-	Next     Counter
+	Curr     counter
+	Next     counter
 	CurrTime time.Time
 	NextTime time.Time
 	Idle     int64
@@ -27,28 +31,7 @@ type CPU struct {
 	Usage    float64
 }
 
-type Counter struct {
-	SetIdle    bool
-	SetIoWait  bool
-	SetIrq     bool
-	SetNice    bool
-	SetSoftIrq bool
-	SetSystem  bool
-	SetUser    bool
-	Idle       int64
-	IoWait     int64
-	Irq        int64
-	Nice       int64
-	SoftIrq    int64
-	System     int64
-	User       int64
-}
-
-func (c *Counter) valid() bool {
-	return c.SetIdle && c.SetIoWait && c.SetIrq && c.SetNice &&
-		c.SetSoftIrq && c.SetSystem && c.SetUser
-}
-
+// Update adds m to the next counter tracked by c
 func (c *CPU) Update(m *legacy.MetricSplit) {
 	// ignore metrics for other paths
 	switch m.Path {
@@ -122,11 +105,15 @@ processing:
 	// abandon current next and start new one
 	if c.NextTime.Before(m.TS) {
 		c.NextTime = time.Time{}
-		c.Next = Counter{}
+		c.Next = counter{}
 		goto processing
 	}
 }
 
+// Calculate checks if the next counter has been fully assembled and
+// then calculates the derived metrics, moves the counters forward and
+// returns he derived metrics. If the next counter is not yet complete,
+// it returns nil.
 func (c *CPU) Calculate() *legacy.MetricSplit {
 	if c.NextTime.IsZero() {
 		return nil
@@ -166,14 +153,16 @@ func (c *CPU) Calculate() *legacy.MetricSplit {
 	return c.emitMetric()
 }
 
+// nextToCurrent advances the counters within c by one step
 func (c *CPU) nextToCurrent() {
 	c.CurrTime = c.NextTime
 	c.NextTime = time.Time{}
 
 	c.Curr = c.Next
-	c.Next = Counter{}
+	c.Next = counter{}
 }
 
+// emitMetric returns the derived metrics for the current counter
 func (c *CPU) emitMetric() *legacy.MetricSplit {
 	return &legacy.MetricSplit{
 		AssetID: c.AssetID,
@@ -185,6 +174,31 @@ func (c *CPU) emitMetric() *legacy.MetricSplit {
 			FlpVal: c.Usage,
 		},
 	}
+}
+
+// counter is used to track multiple cpu metrics from the same
+// measurement cycle
+type counter struct {
+	SetIdle    bool
+	SetIoWait  bool
+	SetIrq     bool
+	SetNice    bool
+	SetSoftIrq bool
+	SetSystem  bool
+	SetUser    bool
+	Idle       int64
+	IoWait     int64
+	Irq        int64
+	Nice       int64
+	SoftIrq    int64
+	System     int64
+	User       int64
+}
+
+// valid checks if a counter has been fully populated
+func (c *counter) valid() bool {
+	return c.SetIdle && c.SetIoWait && c.SetIrq && c.SetNice &&
+		c.SetSoftIrq && c.SetSystem && c.SetUser
 }
 
 // https://gist.github.com/DavidVaini/10308388
