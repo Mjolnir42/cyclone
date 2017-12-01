@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"net"
 	"os"
+	"time"
 
 	"github.com/mjolnir42/erebos"
 	metrics "github.com/rcrowley/go-metrics"
@@ -20,14 +21,17 @@ import (
 // MetricSocket provides a socket on which clients can connect and receive a
 // current metrics export in PluginMetricBatch format
 type MetricSocket struct {
-	Errors   chan error
-	Shutdown chan struct{}
-	death    chan error
-	config   *erebos.Config
-	registry *metrics.Registry
-	format   Formatter
-	fetching bool
-	fetch    Fetcher
+	Errors          chan error
+	Shutdown        chan struct{}
+	death           chan error
+	config          *erebos.Config
+	registry        *metrics.Registry
+	format          Formatter
+	fetching        bool
+	fetch           Fetcher
+	debugging       bool
+	activeDebugging bool
+	debugFormat     Formatter
 }
 
 // Formatter is a function that will format the metrics Registry metrics
@@ -58,6 +62,7 @@ func NewFetchingMetricSocket(conf *erebos.Config, reg *metrics.Registry,
 		fetch:    fetch,
 	}
 	s.Errors = make(chan error)
+	s.Shutdown = make(chan struct{})
 	return &s
 }
 
@@ -77,7 +82,15 @@ func NewMetricSocket(conf *erebos.Config, reg *metrics.Registry,
 		format:   format,
 	}
 	s.Errors = make(chan error)
+	s.Shutdown = make(chan struct{})
 	return &s
+}
+
+// SetDebugFormatter can be used to provide a debug formatter for the
+// metrics registry.
+func (s *MetricSocket) SetDebugFormatter(format Formatter) {
+	s.debugging = true
+	s.debugFormat = format
 }
 
 // Run creates the socket, opens the listener and runs accept on incoming
@@ -108,7 +121,6 @@ func (s *MetricSocket) Run() {
 					// called on a closed socket, ie. inside the shutdown
 					// path
 					if op.Op == `accept` && op.Err.Error() == `use of closed network connection` {
-						close(s.Shutdown)
 						break acceptloop
 					}
 				}
@@ -120,6 +132,21 @@ func (s *MetricSocket) Run() {
 		close(acceptStopped)
 	}()
 
+	// check if debug metrics should be printed. always run the Ticker to
+	// have the select{} statement more robust, but only actually trigger
+	// the feature if a debug formatter has been provided, the config file
+	// has the feature activated and a print frequency has been provided.
+	var debugBeat *time.Ticker
+	if s.debugging && s.config.Legacy.MetricsDebug && s.config.Legacy.MetricsFrequency != 0 {
+		s.activeDebugging = true
+		debugBeat = time.NewTicker(
+			time.Duration(s.config.Legacy.MetricsFrequency) *
+				time.Second,
+		)
+	} else {
+		debugBeat = time.NewTicker(120 * time.Second)
+	}
+
 runloop:
 	for {
 		select {
@@ -127,8 +154,14 @@ runloop:
 			go s.handleConn(conn)
 		case <-s.Shutdown:
 			break runloop
+		case <-debugBeat.C:
+			if s.activeDebugging {
+				(*s.registry).Each(s.debugFormat(nil))
+			}
 		}
 	}
+	// stop debug ticker
+	debugBeat.Stop()
 	// close socket
 	sock.Close()
 	// wait for acceptloop to terminate

@@ -332,7 +332,7 @@ func (m *MetricData) MarshalJSON() ([]byte, error) {
 
 	j = `{"ctime":`
 	j += fmt.Sprintf("%.0f", float64(m.Time.Unix())) + `,`
-	j += `{"metrics":{`
+	j += `"metrics":{`
 
 	if m.FloatMetrics.Len() > 0 {
 		hasFloatMetrics = true
@@ -366,7 +366,7 @@ func (m *MetricData) MarshalJSON() ([]byte, error) {
 		j += string(mBuf)
 	}
 
-	j += `}`
+	j += `}}`
 	return []byte(j), nil
 
 fail:
@@ -384,18 +384,18 @@ func (slice FloatMetrics) MarshalJSON() ([]byte, error) {
 			// first element
 			j = `"` + slice[i].Metric + `":{` +
 				`"` + slice[i].Subtype + `":` +
-				fmt.Sprintf("%.0f", slice[i].Value)
+				fmt.Sprintf("%.6f", slice[i].Value)
 		case slice[i].Metric:
 			// additional value for this metric
 			j += `,"` + slice[i].Subtype + `":` +
-				fmt.Sprintf("%.0f", slice[i].Value)
+				fmt.Sprintf("%.6f", slice[i].Value)
 		default:
 			// metric switched
 			lastMetric = slice[i].Metric
 			j += `},` +
 				`"` + slice[i].Metric + `":{` +
 				`"` + slice[i].Subtype + `":` +
-				fmt.Sprintf("%.0f", slice[i].Value)
+				fmt.Sprintf("%.6f", slice[i].Value)
 		}
 	}
 	if len(slice) > 0 {
@@ -417,18 +417,18 @@ func (slice IntMetrics) MarshalJSON() ([]byte, error) {
 			// first element
 			j = `"` + slice[i].Metric + `":{` +
 				`"` + slice[i].Subtype + `":` +
-				fmt.Sprintf("%.0f", float64(slice[i].Value))
+				fmt.Sprintf("%.6f", float64(slice[i].Value))
 		case slice[i].Metric:
 			// additional value for this metric
 			j += `,"` + slice[i].Subtype + `":` +
-				fmt.Sprintf("%.0f", float64(slice[i].Value))
+				fmt.Sprintf("%.6f", float64(slice[i].Value))
 		default:
 			// metric switched
 			lastMetric = slice[i].Metric
 			j += `},` +
 				`"` + slice[i].Metric + `":{` +
 				`"` + slice[i].Subtype + `":` +
-				fmt.Sprintf("%.0f", float64(slice[i].Value))
+				fmt.Sprintf("%.6f", float64(slice[i].Value))
 		}
 	}
 	if len(slice) > 0 {

@@ -49,11 +49,11 @@
 		},
 		{
 			"ImportPath": "github.com/mjolnir42/erebos",
-			"Rev": "1cf0fc454e85c1e0c57a91da9d84d3f4e0b26576"
+			"Rev": "ffcc2c405e6acb78b0091842813e905be7a815bb"
 		},
 		{
 			"ImportPath": "github.com/mjolnir42/legacy",
-			"Rev": "3926d9a0f5b9092c145b646a5622c17dd3fe8f6d"
+			"Rev": "0b3af6338fa9cbb00c6ed1688d4112add7ce0276"
 		},
 		{
 			"ImportPath": "github.com/nahanni/go-ucl",
