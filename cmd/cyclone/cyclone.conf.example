@@ -1,23 +1,47 @@
 # cyclone configuration file
-cyclone.alarming.destination: 'http://localhost:80/alarms'
-cyclone.api.version: '1.0'
-cyclone.lookup.host: 'localhost'
-cyclone.lookup.path: 'api/v1/configuration'
-cyclone.lookup.port: '7777'
-cyclone.metrics.max.age.minutes: '120'
-cyclone.testmode: 'false'
-cyclone.handler.queue.length: '5'
-kafka.consumer.group.name: 'cyclone'
-kafka.consumer.topics: 'metrics'
-kafka.keepalive.ms: '500'
-log.debug: 'false'
-log.file: 'cyclone.log'
-log.path: '/srv/cyclone/de_kae_bs/log'
-log.rotate.on.usr2: 'true'
-misc.produce.metrics: 'true'
-redis.connect: 'localhost:6379'
-redis.db: '0'
-redis.password: 'sikrit'
-zookeeper.commit.ms: '1000'
-zookeeper.connect: 'localhost:2181/kafka'
-zookeeper.reset.offset.on.startup: 'false'
+#
+# cyclone application settings
+cyclone: {
+    alarming.destination: 'http://localhost:80/alarms'
+    api.version: '1.0'
+    lookup.host: 'localhost'
+    lookup.path: 'api/v1/configuration'
+    lookup.port: '7777'
+    metrics.max.age.minutes: '120'
+    testmode: 'false'
+    handler.queue.length: '5'
+}
+
+# kafka settings
+kafka: {
+    consumer.group.name: 'cyclone'
+    consumer.topics: 'metrics'
+    keepalive.ms: '500'
+}
+
+# log settings
+log: {
+    debug: 'false'
+    file: 'cyclone.log'
+    path: '/srv/cyclone/de_kae_bs/log'
+    rotate.on.usr2: 'true'
+}
+
+# misc settings
+misc: {
+    produce.metrics: 'true'
+}
+
+# redis settings
+redis: {
+    connect: 'localhost:6379'
+    db: '0'
+    password: 'sikrit'
+}
+
+# zookeeper settings
+zookeeper: {
+    commit.ms: '1000'
+    connect: 'localhost:2181/kafka'
+    reset.offset.on.startup: 'false'
+}
