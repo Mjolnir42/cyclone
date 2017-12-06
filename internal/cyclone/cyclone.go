@@ -11,6 +11,7 @@ package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -120,6 +121,16 @@ func (c *Cyclone) cmpFlp(pred string, value float64, threshold int64) (bool, str
 		)
 		return false, ``
 	}
+}
+
+// isUUID validates if a string is one very narrow formatting of a
+// UUID. Other valid formats with braces etc are not accepted.
+func isUUID(s string) bool {
+	const reUUID string = `^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[1-5][[:xdigit:]]{3}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$`
+	const reUNIL string = `^0{8}-0{4}-0{4}-0{4}-0{12}$`
+	re := regexp.MustCompile(fmt.Sprintf("%s|%s", reUUID, reUNIL))
+
+	return re.MatchString(s)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix
