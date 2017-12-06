@@ -11,7 +11,6 @@ package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
 import (
 	"fmt"
 
-	"github.com/mjolnir42/cyclone/internal/cyclone/cpu"
 	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
 	"github.com/mjolnir42/cyclone/internal/cyclone/mem"
 	"github.com/mjolnir42/delay"
@@ -30,7 +29,6 @@ func (c *Cyclone) Start() {
 		return
 	}
 
-	c.CPUData = make(map[int64]cpu.CPU)
 	c.MemData = make(map[int64]mem.Mem)
 	c.DskData = make(map[int64]map[string]disk.Disk)
 	c.internalInput = make(chan *legacy.MetricSplit, 32)

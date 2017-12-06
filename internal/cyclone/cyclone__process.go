@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/mjolnir42/cyclone/internal/cyclone/cpu"
 	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
 	"github.com/mjolnir42/cyclone/internal/cyclone/mem"
 	"github.com/mjolnir42/erebos"
@@ -76,28 +75,6 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		*c.Metrics).Mark(1)
 
 	switch m.Path {
-	case `/sys/cpu/count/idle`:
-		fallthrough
-	case `/sys/cpu/count/iowait`:
-		fallthrough
-	case `/sys/cpu/count/irq`:
-		fallthrough
-	case `/sys/cpu/count/nice`:
-		fallthrough
-	case `/sys/cpu/count/softirq`:
-		fallthrough
-	case `/sys/cpu/count/system`:
-		fallthrough
-	case `/sys/cpu/count/user`:
-		cu := cpu.CPU{}
-		id := m.AssetID
-		if _, ok := c.CPUData[id]; ok {
-			cu = c.CPUData[id]
-		}
-		cu.Update(m)
-		m = cu.Calculate()
-		c.CPUData[id] = cu
-
 	case `/sys/memory/active`:
 		fallthrough
 	case `/sys/memory/buffers`:

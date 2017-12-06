@@ -9,14 +9,12 @@ validate:
 	@go vet ./internal/...
 	@go tool vet -shadow cmd/cyclone/
 	@go tool vet -shadow internal/cyclone/
-	@go tool vet -shadow internal/cyclone/cpu/
 	@go tool vet -shadow internal/cyclone/disk/
 	@go tool vet -shadow internal/cyclone/mem/
 	@golint ./cmd/...
 	@golint ./internal/...
 	@ineffassign cmd/cyclone/
 	@ineffassign internal/cyclone/
-	@ineffassign internal/cyclone/cpu/
 	@ineffassign internal/cyclone/disk/
 	@ineffassign internal/cyclone/mem/
 

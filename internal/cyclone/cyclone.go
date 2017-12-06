@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/mjolnir42/cyclone/internal/cyclone/cpu"
 	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
 	"github.com/mjolnir42/cyclone/internal/cyclone/mem"
 	"github.com/mjolnir42/delay"
@@ -44,7 +43,6 @@ type Cyclone struct {
 	Config        *erebos.Config
 	Metrics       *metrics.Registry
 	delay         *delay.Delay
-	CPUData       map[int64]cpu.CPU
 	MemData       map[int64]mem.Mem
 	DskData       map[int64]map[string]disk.Disk
 	redis         *redis.Client
