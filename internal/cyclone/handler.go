@@ -6,14 +6,14 @@
  * that can be found in the LICENSE file.
  */
 
-package cyclone // import "github.com/mjolnir42/cyclone/lib/cyclone"
+package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
 
 import (
 	"fmt"
 
-	"github.com/mjolnir42/cyclone/lib/cyclone/cpu"
-	"github.com/mjolnir42/cyclone/lib/cyclone/disk"
-	"github.com/mjolnir42/cyclone/lib/cyclone/mem"
+	"github.com/mjolnir42/cyclone/internal/cyclone/cpu"
+	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
+	"github.com/mjolnir42/cyclone/internal/cyclone/mem"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	"gopkg.in/redis.v3"

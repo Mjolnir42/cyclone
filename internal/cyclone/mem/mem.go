@@ -8,7 +8,7 @@
 
 // Package mem provides the following derived metrics:
 //	- memory.usage.percent
-package mem // import "github.com/mjolnir42/cyclone/lib/cyclone/mem"
+package mem // import "github.com/mjolnir42/cyclone/internal/cyclone/mem"
 
 import (
 	"math"

@@ -7,7 +7,7 @@
  * that can be found in the LICENSE file.
  */
 
-package cyclone // import "github.com/mjolnir42/cyclone/lib/cyclone"
+package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
 
 import (
 	"encoding/json"

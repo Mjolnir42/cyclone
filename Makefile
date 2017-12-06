@@ -6,19 +6,19 @@ all: freebsd linux
 validate:
 	@go build ./...
 	@go vet ./cmd/...
-	@go vet ./lib/...
+	@go vet ./internal/...
 	@go tool vet -shadow cmd/cyclone/
-	@go tool vet -shadow lib/cyclone/
-	@go tool vet -shadow lib/cyclone/cpu/
-	@go tool vet -shadow lib/cyclone/disk/
-	@go tool vet -shadow lib/cyclone/mem/
+	@go tool vet -shadow internal/cyclone/
+	@go tool vet -shadow internal/cyclone/cpu/
+	@go tool vet -shadow internal/cyclone/disk/
+	@go tool vet -shadow internal/cyclone/mem/
 	@golint ./cmd/...
-	@golint ./lib/...
+	@golint ./internal/...
 	@ineffassign cmd/cyclone/
-	@ineffassign lib/cyclone/
-	@ineffassign lib/cyclone/cpu/
-	@ineffassign lib/cyclone/disk/
-	@ineffassign lib/cyclone/mem/
+	@ineffassign internal/cyclone/
+	@ineffassign internal/cyclone/cpu/
+	@ineffassign internal/cyclone/disk/
+	@ineffassign internal/cyclone/mem/
 
 freebsd:
 	@env GOOS=freebsd GOARCH=amd64 go install -ldflags "-X main.buildtime=`date -u +%Y-%m-%dT%H:%M:%S%z` -X main.githash=`git rev-parse HEAD` -X main.shorthash=`git rev-parse --short HEAD` -X main.builddate=`date -u +%Y%m%d`" ./...

@@ -9,7 +9,7 @@
 // Package cpu provides the following derived metrics:
 //	- cpu.ctx.per.second
 //	- cpu.usage.percent
-package cpu // import "github.com/mjolnir42/cyclone/lib/cyclone/cpu"
+package cpu // import "github.com/mjolnir42/cyclone/internal/cyclone/cpu"
 
 import (
 	"math"

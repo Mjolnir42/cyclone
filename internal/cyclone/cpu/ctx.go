@@ -6,7 +6,7 @@
  * that can be found in the LICENSE file.
  */
 
-package cpu // import "github.com/mjolnir42/cyclone/lib/cyclone/cpu"
+package cpu // import "github.com/mjolnir42/cyclone/internal/cyclone/cpu"
 
 import (
 	"time"

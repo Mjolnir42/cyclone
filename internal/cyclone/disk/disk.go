@@ -11,7 +11,7 @@
 //	- disk.read.per.second
 //	- disk.free
 //	- disk.usage.percent
-package disk // import "github.com/mjolnir42/cyclone/lib/cyclone/disk"
+package disk // import "github.com/mjolnir42/cyclone/internal/cyclone/disk"
 
 import (
 	"fmt"

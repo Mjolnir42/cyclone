@@ -23,7 +23,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
-	"github.com/mjolnir42/cyclone/lib/cyclone"
+	"github.com/mjolnir42/cyclone/internal/cyclone"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
