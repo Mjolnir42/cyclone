@@ -113,10 +113,14 @@ func main() {
 		metricPrefix = fmt.Sprintf("/cyclone/%s", cyConf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
-	metrics.NewRegisteredMeter(`/metrics/consumed`, pfxRegistry)
-	metrics.NewRegisteredMeter(`/metrics/processed`, pfxRegistry)
-	metrics.NewRegisteredMeter(`/evaluations`, pfxRegistry)
-	metrics.NewRegisteredMeter(`/alarms`, pfxRegistry)
+	metrics.NewRegisteredMeter(`/metrics/consumed.per.second`,
+		pfxRegistry)
+	metrics.NewRegisteredMeter(`/metrics/processed.per.second`,
+		pfxRegistry)
+	metrics.NewRegisteredMeter(`/evaluations.per.second`,
+		pfxRegistry)
+	metrics.NewRegisteredMeter(`/alarms.per.second`,
+		pfxRegistry)
 
 	// start metric socket
 	ms := legacy.NewMetricSocket(&cyConf, &pfxRegistry, handlerDeath, cyclone.FormatMetrics)

@@ -132,7 +132,8 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	}
 
 	// non-heartbeat metrics count towards processed metrics
-	metrics.GetOrRegisterMeter(`/metrics/processed`, *c.Metrics).Mark(1)
+	metrics.GetOrRegisterMeter(`/metrics/processed.per.second`,
+		*c.Metrics).Mark(1)
 
 	switch m.Path {
 	case `/sys/cpu/ctx`:
@@ -241,7 +242,8 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		return nil
 	}
 	logrus.Debugf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", c.Num, m.Path, m.AssetID, lid)
-	evals := metrics.GetOrRegisterMeter(`/evaluations`, *c.Metrics)
+	evals := metrics.GetOrRegisterMeter(`/evaluations.per.second`,
+		*c.Metrics)
 	evals.Mark(1)
 
 	internalMetric := false
@@ -352,7 +354,8 @@ thrloop:
 			// do not send out alarms in testmode
 			continue thrloop
 		}
-		alrms := metrics.GetOrRegisterMeter(`/alarms`, *c.Metrics)
+		alrms := metrics.GetOrRegisterMeter(`/alarms.per.second`,
+			*c.Metrics)
 		alrms.Mark(1)
 		go func(a AlarmEvent) {
 			b := new(bytes.Buffer)
