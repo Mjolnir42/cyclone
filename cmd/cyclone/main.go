@@ -49,14 +49,17 @@ func main() {
 		logFH       *reopen.FileWriter
 		versionFlag bool
 	)
-	flag.StringVar(&configFlag, `config`, `cyclone.conf`, `Configuration file location`)
-	flag.BoolVar(&versionFlag, `version`, false, `Print version information`)
+	flag.StringVar(&configFlag, `config`, `cyclone.conf`,
+		`Configuration file location`)
+	flag.BoolVar(&versionFlag, `version`, false,
+		`Print version information`)
 	flag.Parse()
 
 	// only provide version information if --version was specified
 	if versionFlag {
 		fmt.Fprintln(os.Stderr, `Cyclone Metric Monitoring System`)
-		fmt.Fprintf(os.Stderr, "Version  : %s-%s\n", builddate, shorthash)
+		fmt.Fprintf(os.Stderr, "Version  : %s-%s\n", builddate,
+			shorthash)
 		fmt.Fprintf(os.Stderr, "Git Hash : %s\n", githash)
 		fmt.Fprintf(os.Stderr, "Timestamp: %s\n", buildtime)
 		os.Exit(0)
@@ -110,7 +113,8 @@ func main() {
 	case ``:
 		metricPrefix = `/cyclone`
 	default:
-		metricPrefix = fmt.Sprintf("/cyclone/%s", cyConf.Misc.InstanceName)
+		metricPrefix = fmt.Sprintf("/cyclone/%s",
+			cyConf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
 	metrics.NewRegisteredMeter(`/metrics/consumed.per.second`,
@@ -123,18 +127,22 @@ func main() {
 		pfxRegistry)
 
 	// start metric socket
-	ms := legacy.NewMetricSocket(&cyConf, &pfxRegistry, handlerDeath, cyclone.FormatMetrics)
+	ms := legacy.NewMetricSocket(&cyConf, &pfxRegistry, handlerDeath,
+		cyclone.FormatMetrics)
 	if cyConf.Misc.ProduceMetrics {
 		logrus.Info(`Launched metrics producer socket`)
 		go ms.Run()
 	}
 
-	cyclone.AgeCutOff = time.Duration(cyConf.Cyclone.MetricsMaxAge) * time.Minute * -1
+	cyclone.AgeCutOff = time.Duration(
+		cyConf.Cyclone.MetricsMaxAge,
+	) * time.Minute * -1
 
 	for i := 0; i < runtime.NumCPU(); i++ {
 		h := cyclone.Cyclone{
-			Num:      i,
-			Input:    make(chan *erebos.Transport, cyConf.Cyclone.HandlerQueueLength),
+			Num: i,
+			Input: make(chan *erebos.Transport,
+				cyConf.Cyclone.HandlerQueueLength),
 			Shutdown: make(chan struct{}),
 			Death:    handlerDeath,
 			Config:   &cyConf,
@@ -172,9 +180,10 @@ runloop:
 			fault = true
 			break runloop
 		case <-heartbeat:
-			// 32bit time_t held 68years at one tick per second. This should
-			// hold 2^32 * 5 * 68 years till overflow
-			cyclone.Handlers[beatcount%runtime.NumCPU()].InputChannel() <- newHeartbeat()
+			// 32bit time_t held 68years at one tick per second. This
+			// should hold 2^32 * 5 * 68 years till overflow
+			cyclone.Handlers[beatcount%runtime.NumCPU()].
+				InputChannel() <- newHeartbeat()
 			beatcount++
 		}
 	}

@@ -19,7 +19,9 @@ import (
 // cyclone handler
 func newHeartbeat() *erebos.Transport {
 	msg := &erebos.Transport{}
-	msg.Value, _ = json.Marshal(&legacy.MetricSplit{Path: `_internal.cyclone.heartbeat`})
+	msg.Value, _ = json.Marshal(&legacy.MetricSplit{
+		Path: `_internal.cyclone.heartbeat`,
+	})
 	return msg
 }
 
