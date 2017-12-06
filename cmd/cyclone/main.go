@@ -24,6 +24,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/cyclone/lib/cyclone"
+	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	"github.com/rcrowley/go-metrics"
@@ -107,6 +108,9 @@ func main() {
 	// this channel will be closed by the consumer
 	consumerExit := make(chan struct{})
 
+	// setup goroutine waiting policy
+	waitdelay := delay.NewDelay()
+
 	// setup metrics
 	var metricPrefix string
 	switch cyConf.Misc.InstanceName {
@@ -131,7 +135,11 @@ func main() {
 		cyclone.FormatMetrics)
 	if cyConf.Misc.ProduceMetrics {
 		logrus.Info(`Launched metrics producer socket`)
-		go ms.Run()
+		waitdelay.Use()
+		go func() {
+			defer waitdelay.Done()
+			ms.Run()
+		}()
 	}
 
 	cyclone.AgeCutOff = time.Duration(
@@ -149,18 +157,26 @@ func main() {
 			Metrics:  &pfxRegistry,
 		}
 		cyclone.Handlers[i] = &h
-		go h.Start()
+		waitdelay.Use()
+		go func() {
+			defer waitdelay.Done()
+			h.Start()
+		}()
 		logrus.Infof("Launched Cyclone handler #%d", i)
 	}
 
 	// start kafka consumer
-	go erebos.Consumer(
-		&cyConf,
-		wrappedDispatch(&pfxRegistry, cyclone.Dispatch),
-		consumerShutdown,
-		consumerExit,
-		handlerDeath,
-	)
+	waitdelay.Use()
+	go func() {
+		defer waitdelay.Done()
+		erebos.Consumer(
+			&conf,
+			wrappedDispatch(&pfxRegistry, cyclone.Dispatch),
+			consumerShutdown,
+			consumerExit,
+			handlerDeath,
+		)
+	}()
 
 	heartbeat := time.Tick(5 * time.Second)
 	beatcount := 0
@@ -212,7 +228,7 @@ drainloop:
 
 	// give goroutines that were blocked on handlerDeath channel
 	// a chance to exit
-	<-time.After(time.Millisecond * 10)
+	waitdelay.Wait()
 	logrus.Infoln(`CYCLONE shutdown complete`)
 	if fault {
 		os.Exit(1)
