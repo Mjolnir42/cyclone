@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
@@ -72,47 +71,6 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	// non-heartbeat metrics count towards processed metrics
 	metrics.GetOrRegisterMeter(`/metrics/processed.per.second`,
 		*c.Metrics).Mark(1)
-
-	switch m.Path {
-	case `/sys/disk/blk_total`:
-		fallthrough
-	case `/sys/disk/blk_used`:
-		fallthrough
-	case `/sys/disk/blk_read`:
-		fallthrough
-	case `/sys/disk/blk_wrtn`:
-		if len(m.Tags) == 0 {
-			m = nil
-			break
-		}
-		d := disk.Disk{}
-		id := m.AssetID
-		mpt := m.Tags[0]
-		if c.DskData[id] == nil {
-			c.DskData[id] = make(map[string]disk.Disk)
-		}
-		if _, ok := c.DskData[id][mpt]; !ok {
-			c.DskData[id][mpt] = d
-		}
-		if _, ok := c.DskData[id][mpt]; ok {
-			d = c.DskData[id][mpt]
-		}
-		d.Update(m)
-		mArr := d.Calculate()
-		if mArr != nil {
-			for _, mPtr := range mArr {
-				// no deadlock, channel is buffered
-				c.internalInput <- mPtr
-			}
-		}
-		c.DskData[id][mpt] = d
-		m = nil
-	}
-
-	if m == nil {
-		logrus.Debugf("Cyclone[%d], Metric has been consumed", c.Num)
-		return nil
-	}
 
 	lid := m.LookupID()
 	thr := c.Lookup(lid)

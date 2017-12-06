@@ -14,10 +14,8 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
 	"gopkg.in/redis.v3"
 )
@@ -42,9 +40,7 @@ type Cyclone struct {
 	Config        *erebos.Config
 	Metrics       *metrics.Registry
 	delay         *delay.Delay
-	DskData       map[int64]map[string]disk.Disk
 	redis         *redis.Client
-	internalInput chan *legacy.MetricSplit
 	discard       map[string]bool
 }
 
