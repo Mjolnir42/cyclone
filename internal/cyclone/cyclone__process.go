@@ -22,6 +22,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/eyewall"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
 )
@@ -74,26 +75,25 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	metrics.GetOrRegisterMeter(`/metrics/processed.per.second`,
 		*c.Metrics).Mark(1)
 
-	lid := m.LookupID()
-	thr := c.Lookup(lid)
-	if thr == nil {
-		logrus.Errorf(
-			"Cyclone[%d], ERROR fetching threshold data."+
-				" Lookup service available?",
-			c.Num,
-		)
-		return nil
-	}
-	if len(thr) == 0 {
+	// fetch configuration profile information
+	thr, err := c.lookup.LookupThreshold(m.LookupID())
+	if err == eyewall.ErrUnconfigured {
 		logrus.Debugf(
 			"Cyclone[%d], No thresholds configured for %s from %d",
 			c.Num, m.Path, m.AssetID,
 		)
 		return nil
+	} else if err != nil {
+		logrus.Errorf(
+			"Cyclone[%d], ERROR fetching threshold data."+
+				" Lookup service available?",
+			c.Num,
+		)
+		return err
 	}
 	logrus.Debugf(
 		"Cyclone[%d], Forwarding %s from %d for evaluation (%s)",
-		c.Num, m.Path, m.AssetID, lid,
+		c.Num, m.Path, m.AssetID, m.LookupID(),
 	)
 	evals := metrics.GetOrRegisterMeter(`/evaluations.per.second`,
 		*c.Metrics)

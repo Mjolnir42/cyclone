@@ -13,6 +13,7 @@ import (
 
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
+	"github.com/mjolnir42/eyewall"
 	"gopkg.in/redis.v3"
 )
 
@@ -43,6 +44,8 @@ func (c *Cyclone) Start() {
 	for _, path := range c.Config.Cyclone.DiscardMetrics {
 		c.discard[path] = true
 	}
+	c.lookup = eyewall.NewLookup(c.Config)
+	defer c.lookup.Close()
 
 	c.run()
 }
