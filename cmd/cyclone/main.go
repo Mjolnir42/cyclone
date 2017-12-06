@@ -67,34 +67,34 @@ func main() {
 	}
 
 	// read runtime configuration
-	cyConf := erebos.Config{}
-	if err = cyConf.FromFile(configFlag); err != nil {
+	conf := erebos.Config{}
+	if err = conf.FromFile(configFlag); err != nil {
 		logrus.Fatalf("Could not open configuration: %s", err)
 	}
 
 	// setup logfile
 	if logFH, err = reopen.NewFileWriter(
-		filepath.Join(cyConf.Log.Path, cyConf.Log.File),
+		filepath.Join(conf.Log.Path, conf.Log.File),
 	); err != nil {
 		logrus.Fatalf("Unable to open logfile: %s", err)
 	} else {
-		cyConf.Log.FH = logFH
+		conf.Log.FH = logFH
 	}
-	logrus.SetOutput(cyConf.Log.FH)
+	logrus.SetOutput(conf.Log.FH)
 	logrus.Infoln(`Starting CYCLONE...`)
 
 	// switch to requested loglevel
-	if cyConf.Log.Debug {
+	if conf.Log.Debug {
 		logrus.SetLevel(logrus.DebugLevel)
 	} else {
 		logrus.SetLevel(logrus.WarnLevel)
 	}
 
 	// signal handler will reopen logfile on USR2 if requested
-	if cyConf.Log.Rotate {
+	if conf.Log.Rotate {
 		sigChanLogRotate := make(chan os.Signal, 1)
 		signal.Notify(sigChanLogRotate, syscall.SIGUSR2)
-		go erebos.Logrotate(sigChanLogRotate, cyConf)
+		go erebos.Logrotate(sigChanLogRotate, conf)
 	}
 
 	// setup signal receiver for graceful shutdown
@@ -113,12 +113,12 @@ func main() {
 
 	// setup metrics
 	var metricPrefix string
-	switch cyConf.Misc.InstanceName {
+	switch conf.Misc.InstanceName {
 	case ``:
 		metricPrefix = `/cyclone`
 	default:
 		metricPrefix = fmt.Sprintf("/cyclone/%s",
-			cyConf.Misc.InstanceName)
+			conf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
 	metrics.NewRegisteredMeter(`/metrics/consumed.per.second`,
@@ -131,9 +131,9 @@ func main() {
 		pfxRegistry)
 
 	// start metric socket
-	ms := legacy.NewMetricSocket(&cyConf, &pfxRegistry, handlerDeath,
+	ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath,
 		cyclone.FormatMetrics)
-	if cyConf.Misc.ProduceMetrics {
+	if conf.Misc.ProduceMetrics {
 		logrus.Info(`Launched metrics producer socket`)
 		waitdelay.Use()
 		go func() {
@@ -143,17 +143,18 @@ func main() {
 	}
 
 	cyclone.AgeCutOff = time.Duration(
-		cyConf.Cyclone.MetricsMaxAge,
+		conf.Cyclone.MetricsMaxAge,
 	) * time.Minute * -1
 
+	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
 		h := cyclone.Cyclone{
 			Num: i,
 			Input: make(chan *erebos.Transport,
-				cyConf.Cyclone.HandlerQueueLength),
+				conf.Cyclone.HandlerQueueLength),
 			Shutdown: make(chan struct{}),
 			Death:    handlerDeath,
-			Config:   &cyConf,
+			Config:   &conf,
 			Metrics:  &pfxRegistry,
 		}
 		cyclone.Handlers[i] = &h
@@ -207,7 +208,9 @@ runloop:
 	// close all handlers
 	close(ms.Shutdown)
 	close(consumerShutdown)
-	<-consumerExit // not safe to close InputChannel before consumer is gone
+
+	// not safe to close InputChannel before consumer is gone
+	<-consumerExit
 	for i := range cyclone.Handlers {
 		close(cyclone.Handlers[i].ShutdownChannel())
 		close(cyclone.Handlers[i].InputChannel())
