@@ -76,15 +76,6 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		*c.Metrics).Mark(1)
 
 	switch m.Path {
-	case `/sys/cpu/ctx`:
-		ctx := cpu.CTX{}
-		id := m.AssetID
-		if _, ok := c.CTXData[id]; ok {
-			ctx = c.CTXData[id]
-		}
-		m = ctx.Update(m)
-		c.CTXData[id] = ctx
-
 	case `/sys/cpu/count/idle`:
 		fallthrough
 	case `/sys/cpu/count/iowait`:

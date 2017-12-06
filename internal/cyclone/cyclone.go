@@ -46,7 +46,6 @@ type Cyclone struct {
 	delay         *delay.Delay
 	CPUData       map[int64]cpu.CPU
 	MemData       map[int64]mem.Mem
-	CTXData       map[int64]cpu.CTX
 	DskData       map[int64]map[string]disk.Disk
 	redis         *redis.Client
 	internalInput chan *legacy.MetricSplit

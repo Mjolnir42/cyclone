@@ -32,7 +32,6 @@ func (c *Cyclone) Start() {
 
 	c.CPUData = make(map[int64]cpu.CPU)
 	c.MemData = make(map[int64]mem.Mem)
-	c.CTXData = make(map[int64]cpu.CTX)
 	c.DskData = make(map[int64]map[string]disk.Disk)
 	c.internalInput = make(chan *legacy.MetricSplit, 32)
 	c.redis = redis.NewClient(&redis.Options{
