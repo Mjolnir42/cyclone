@@ -12,7 +12,6 @@ import (
 	"fmt"
 
 	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
-	"github.com/mjolnir42/cyclone/internal/cyclone/mem"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
@@ -29,7 +28,6 @@ func (c *Cyclone) Start() {
 		return
 	}
 
-	c.MemData = make(map[int64]mem.Mem)
 	c.DskData = make(map[int64]map[string]disk.Disk)
 	c.internalInput = make(chan *legacy.MetricSplit, 32)
 	c.redis = redis.NewClient(&redis.Options{

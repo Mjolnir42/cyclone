@@ -10,13 +10,11 @@ validate:
 	@go tool vet -shadow cmd/cyclone/
 	@go tool vet -shadow internal/cyclone/
 	@go tool vet -shadow internal/cyclone/disk/
-	@go tool vet -shadow internal/cyclone/mem/
 	@golint ./cmd/...
 	@golint ./internal/...
 	@ineffassign cmd/cyclone/
 	@ineffassign internal/cyclone/
 	@ineffassign internal/cyclone/disk/
-	@ineffassign internal/cyclone/mem/
 
 freebsd:
 	@env GOOS=freebsd GOARCH=amd64 go install -ldflags "-X main.buildtime=`date -u +%Y-%m-%dT%H:%M:%S%z` -X main.githash=`git rev-parse HEAD` -X main.shorthash=`git rev-parse --short HEAD` -X main.builddate=`date -u +%Y%m%d`" ./...

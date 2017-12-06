@@ -22,7 +22,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
-	"github.com/mjolnir42/cyclone/internal/cyclone/mem"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
@@ -75,30 +74,6 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		*c.Metrics).Mark(1)
 
 	switch m.Path {
-	case `/sys/memory/active`:
-		fallthrough
-	case `/sys/memory/buffers`:
-		fallthrough
-	case `/sys/memory/cached`:
-		fallthrough
-	case `/sys/memory/free`:
-		fallthrough
-	case `/sys/memory/inactive`:
-		fallthrough
-	case `/sys/memory/swapfree`:
-		fallthrough
-	case `/sys/memory/swaptotal`:
-		fallthrough
-	case `/sys/memory/total`:
-		mm := mem.Mem{}
-		id := m.AssetID
-		if _, ok := c.MemData[id]; ok {
-			mm = c.MemData[id]
-		}
-		mm.Update(m)
-		m = mm.Calculate()
-		c.MemData[id] = mm
-
 	case `/sys/disk/blk_total`:
 		fallthrough
 	case `/sys/disk/blk_used`:

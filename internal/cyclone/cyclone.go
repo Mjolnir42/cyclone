@@ -15,7 +15,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
-	"github.com/mjolnir42/cyclone/internal/cyclone/mem"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
@@ -43,7 +42,6 @@ type Cyclone struct {
 	Config        *erebos.Config
 	Metrics       *metrics.Registry
 	delay         *delay.Delay
-	MemData       map[int64]mem.Mem
 	DskData       map[int64]map[string]disk.Disk
 	redis         *redis.Client
 	internalInput chan *legacy.MetricSplit
