@@ -14,6 +14,7 @@ import (
 	"github.com/mjolnir42/cyclone/internal/cyclone/cpu"
 	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
 	"github.com/mjolnir42/cyclone/internal/cyclone/mem"
+	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	"gopkg.in/redis.v3"
@@ -46,6 +47,7 @@ func (c *Cyclone) Start() {
 	}
 	defer c.redis.Close()
 
+	c.delay = delay.NewDelay()
 	c.discard = make(map[string]bool)
 	for _, path := range c.Config.Cyclone.DiscardMetrics {
 		c.discard[path] = true

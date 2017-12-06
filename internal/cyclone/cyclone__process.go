@@ -34,7 +34,11 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	if msg == nil || msg.Value == nil {
 		logrus.Warnf("Ignoring empty message from: %d", msg.HostID)
 		if msg != nil {
-			go c.commit(msg)
+			c.delay.Use()
+			go func() {
+				c.commit(msg)
+				c.delay.Done()
+			}()
 		}
 		return nil
 	}
@@ -49,11 +53,15 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		metrics.GetOrRegisterMeter(`/metrics/discarded.per.second`,
 			*c.Metrics).Mark(1)
 		// mark as processed
-		msg.Commit <- &erebos.Commit{
-			Topic:     msg.Topic,
-			Partition: msg.Partition,
-			Offset:    msg.Offset,
-		}
+		c.delay.Use()
+		go func() {
+			msg.Commit <- &erebos.Commit{
+				Topic:     msg.Topic,
+				Partition: msg.Partition,
+				Offset:    msg.Offset,
+			}
+			c.delay.Done()
+		}()
 		return nil
 	}
 
@@ -289,6 +297,7 @@ thrloop:
 		alrms := metrics.GetOrRegisterMeter(`/alarms.per.second`,
 			*c.Metrics)
 		alrms.Mark(1)
+		c.delay.Use()
 		go func(a AlarmEvent) {
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}
@@ -325,6 +334,7 @@ thrloop:
 			// otherwise it leaks filehandles
 			io.Copy(ioutil.Discard, resp.Body)
 			resp.Body.Close()
+			c.delay.Done()
 		}(al)
 	}
 	if evaluations == 0 {

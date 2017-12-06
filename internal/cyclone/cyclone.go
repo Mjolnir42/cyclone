@@ -17,6 +17,7 @@ import (
 	"github.com/mjolnir42/cyclone/internal/cyclone/cpu"
 	"github.com/mjolnir42/cyclone/internal/cyclone/disk"
 	"github.com/mjolnir42/cyclone/internal/cyclone/mem"
+	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
@@ -42,6 +43,7 @@ type Cyclone struct {
 	Death         chan error
 	Config        *erebos.Config
 	Metrics       *metrics.Registry
+	delay         *delay.Delay
 	CPUData       map[int64]cpu.CPU
 	MemData       map[int64]mem.Mem
 	CTXData       map[int64]cpu.CTX
