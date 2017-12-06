@@ -33,15 +33,16 @@ func init() {
 
 // Cyclone performs threshold evaluation alarming on metrics
 type Cyclone struct {
-	Num           int
-	Input         chan *erebos.Transport
-	Shutdown      chan struct{}
-	Death         chan error
-	Config        *erebos.Config
-	Metrics       *metrics.Registry
-	delay         *delay.Delay
-	redis         *redis.Client
-	discard       map[string]bool
+	Num      int
+	Input    chan *erebos.Transport
+	Shutdown chan struct{}
+	Death    chan error
+	Config   *erebos.Config
+	Metrics  *metrics.Registry
+	// unexported
+	delay   *delay.Delay
+	redis   *redis.Client
+	discard map[string]bool
 }
 
 // AlarmEvent is the datatype for sending out alarm notifications
@@ -86,7 +87,9 @@ func (c *Cyclone) cmpInt(pred string, value, threshold int64) (bool, string) {
 	case `!=`:
 		return value != threshold, fVal
 	default:
-		logrus.Errorf("Cyclone[%d], ERROR unknown predicate: %s", c.Num, pred)
+		logrus.Errorf(
+			"Cyclone[%d], ERROR unknown predicate: %s",
+			c.Num, pred)
 		return false, ``
 	}
 }
@@ -109,7 +112,10 @@ func (c *Cyclone) cmpFlp(pred string, value float64, threshold int64) (bool, str
 	case `!=`:
 		return value != fthreshold, fVal
 	default:
-		logrus.Errorf("Cyclone[%d], ERROR unknown predicate: %s", c.Num, pred)
+		logrus.Errorf(
+			"Cyclone[%d], ERROR unknown predicate: %s",
+			c.Num, pred,
+		)
 		return false, ``
 	}
 }

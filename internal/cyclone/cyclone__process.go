@@ -42,6 +42,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 
 	m := &legacy.MetricSplit{}
 	if err := json.Unmarshal(msg.Value, m); err != nil {
+		logrus.Errorf("Invalid data: %s", err.Error())
 		return err
 	}
 
@@ -62,6 +63,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		return nil
 	}
 
+	// handle heartbeats
 	switch m.Path {
 	case `_internal.cyclone.heartbeat`:
 		c.heartbeat()
@@ -75,14 +77,24 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	lid := m.LookupID()
 	thr := c.Lookup(lid)
 	if thr == nil {
-		logrus.Errorf("Cyclone[%d], ERROR fetching threshold data. Lookup service available?", c.Num)
+		logrus.Errorf(
+			"Cyclone[%d], ERROR fetching threshold data."+
+				" Lookup service available?",
+			c.Num,
+		)
 		return nil
 	}
 	if len(thr) == 0 {
-		logrus.Debugf("Cyclone[%d], No thresholds configured for %s from %d", c.Num, m.Path, m.AssetID)
+		logrus.Debugf(
+			"Cyclone[%d], No thresholds configured for %s from %d",
+			c.Num, m.Path, m.AssetID,
+		)
 		return nil
 	}
-	logrus.Debugf("Cyclone[%d], Forwarding %s from %d for evaluation (%s)", c.Num, m.Path, m.AssetID, lid)
+	logrus.Debugf(
+		"Cyclone[%d], Forwarding %s from %d for evaluation (%s)",
+		c.Num, m.Path, m.AssetID, lid,
+	)
 	evals := metrics.GetOrRegisterMeter(`/evaluations.per.second`,
 		*c.Metrics)
 	evals.Mark(1)
@@ -134,17 +146,26 @@ thrloop:
 		if !dispatchAlarm {
 			continue thrloop
 		}
-		logrus.Debugf("Cyclone[%d], Evaluating metric %s from %d against config %s",
-			c.Num, m.Path, m.AssetID, thr[key].ID)
+		logrus.Debugf(
+			"Cyclone[%d], Evaluating metric %s from %d"+
+				" against config %s",
+			c.Num, m.Path, m.AssetID, thr[key].ID,
+		)
 		evaluations++
 
 	lvlloop:
-		for _, lvl := range []string{`9`, `8`, `7`, `6`, `5`, `4`, `3`, `2`, `1`, `0`} {
+		for _, lvl := range []string{
+			`9`, `8`, `7`, `6`, `5`,
+			`4`, `3`, `2`, `1`, `0`,
+		} {
 			thrval, ok := thr[key].Thresholds[lvl]
 			if !ok {
 				continue
 			}
-			logrus.Debugf("Cyclone[%d], Checking %s alarmlevel %s", c.Num, thr[key].ID, lvl)
+			logrus.Debugf(
+				"Cyclone[%d], Checking %s alarmlevel %s",
+				c.Num, thr[key].ID, lvl,
+			)
 			switch m.Type {
 			case `integer`:
 				fallthrough
@@ -164,7 +185,10 @@ thrloop:
 			}
 		}
 		al := AlarmEvent{
-			Source:     fmt.Sprintf("%s / %s", thr[key].MetaTargethost, thr[key].MetaSource),
+			Source: fmt.Sprintf("%s / %s",
+				thr[key].MetaTargethost,
+				thr[key].MetaSource,
+			),
 			EventID:    thr[key].ID,
 			Version:    c.Config.Cyclone.APIVersion,
 			Sourcehost: thr[key].MetaTargethost,
@@ -203,7 +227,10 @@ thrloop:
 			b := new(bytes.Buffer)
 			aSlice := []AlarmEvent{a}
 			if err := json.NewEncoder(b).Encode(aSlice); err != nil {
-				logrus.Errorf("Cyclone[%d], ERROR json encoding alarm for %s: %s", c.Num, a.EventID, err)
+				logrus.Errorf(
+					"Cyclone[%d], ERROR json encoding alarm for %s: %s",
+					c.Num, a.EventID, err,
+				)
 				return
 			}
 			resp, err := http.Post(
@@ -213,22 +240,34 @@ thrloop:
 			)
 
 			if err != nil {
-				logrus.Errorf("Cyclone[%d], ERROR sending alarm for %s: %s", c.Num, a.EventID, err)
+				logrus.Errorf(
+					"Cyclone[%d], ERROR sending alarm for %s: %s",
+					c.Num, a.EventID, err,
+				)
 				return
 			}
-			logrus.Infof("Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
-				c.Num, a.EventID, a.Level, resp.StatusCode)
+			logrus.Infof(
+				"Cyclone[%d], Dispatched alarm for %s at level %d,"+
+					" returncode was %d",
+				c.Num, a.EventID, a.Level, resp.StatusCode,
+			)
 			if resp.StatusCode >= 209 {
 				// read response body
 				bt, _ := ioutil.ReadAll(resp.Body)
-				logrus.Errorf("Cyclone[%d], ResponseMsg(%d): %s", c.Num, resp.StatusCode, string(bt))
+				logrus.Errorf(
+					"Cyclone[%d], ResponseMsg(%d): %s",
+					c.Num, resp.StatusCode, string(bt),
+				)
 				resp.Body.Close()
 
 				// reset buffer and encode JSON again so it can be
 				// logged
 				b.Reset()
 				json.NewEncoder(b).Encode(aSlice)
-				logrus.Errorf("Cyclone[%d], RequestJSON: %s", c.Num, b.String())
+				logrus.Errorf(
+					"Cyclone[%d], RequestJSON: %s",
+					c.Num, b.String(),
+				)
 				return
 			}
 			// ensure http.Response.Body is consumed and closed,
@@ -239,7 +278,10 @@ thrloop:
 		}(al)
 	}
 	if evaluations == 0 {
-		logrus.Debugf("Cyclone[%d], metric %s(%d) matched no configurations", c.Num, m.Path, m.AssetID)
+		logrus.Debugf(
+			"Cyclone[%d], metric %s(%d) matched no configurations",
+			c.Num, m.Path, m.AssetID,
+		)
 	}
 	return nil
 }
