@@ -46,6 +46,11 @@ func (c *Cyclone) Start() {
 	}
 	defer c.redis.Close()
 
+	c.discard = make(map[string]bool)
+	for _, path := range c.Config.Cyclone.DiscardMetrics {
+		c.discard[path] = true
+	}
+
 	c.run()
 }
 

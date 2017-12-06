@@ -10,6 +10,39 @@ cyclone: {
     metrics.max.age.minutes: '120'
     testmode: 'false'
     handler.queue.length: '5'
+    discard.metrics: [
+	    '/sys/disk/fs',
+	    '/sys/disk/mounts',
+	    '/sys/net/mac',
+	    '/sys/net/rx_bytes',
+	    '/sys/net/rx_packets',
+	    '/sys/net/tx_bytes',
+	    '/sys/net/tx_packets',
+	    '/sys/memory/swapcached',
+	    '/sys/load/last_pid',
+	    '/sys/cpu/idletime',
+	    '/sys/cpu/MHz',
+	    '/sys/net/bondslave',
+	    '/sys/net/connstates/ipv4',
+	    '/sys/net/connstates/ipv6',
+	    '/sys/net/duplex',
+	    '/sys/net/ipv4_addr',
+	    '/sys/net/ipv6_addr',
+	    '/sys/net/speed',
+	    '/sys/net/ipvs/conn/count',
+	    '/sys/net/ipvs/conn/servercount',
+	    '/sys/net/ipvs/conn/serverstatecount',
+	    '/sys/net/ipvs/conn/statecount',
+	    '/sys/net/ipvs/conn/vipconns',
+	    '/sys/net/ipvs/conn/vipstatecount',
+	    '/sys/net/ipvs/count',
+	    '/sys/net/ipvs/detail',
+	    '/sys/net/ipvs/state',
+	    '/sys/net/quagga/bgp/announce',
+	    '/sys/net/quagga/bgp/connage',
+	    '/sys/net/quagga/bgp/connstate',
+	    '/sys/net/quagga/bgp/neighbour',
+    ]
 }
 
 # kafka settings

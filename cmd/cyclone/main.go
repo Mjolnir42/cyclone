@@ -123,6 +123,8 @@ func main() {
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
 	metrics.NewRegisteredMeter(`/metrics/consumed.per.second`,
 		pfxRegistry)
+	metrics.NewRegisteredMeter(`/metrics/discarded.per.second`,
+		pfxRegistry)
 	metrics.NewRegisteredMeter(`/metrics/processed.per.second`,
 		pfxRegistry)
 	metrics.NewRegisteredMeter(`/evaluations.per.second`,

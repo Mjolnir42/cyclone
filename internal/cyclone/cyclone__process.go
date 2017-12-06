@@ -44,6 +44,19 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		return err
 	}
 
+	// ignore metrics configured to discard
+	if c.discard[m.Path] {
+		metrics.GetOrRegisterMeter(`/metrics/discarded.per.second`,
+			*c.Metrics).Mark(1)
+		// mark as processed
+		msg.Commit <- &erebos.Commit{
+			Topic:     msg.Topic,
+			Partition: msg.Partition,
+			Offset:    msg.Offset,
+		}
+		return nil
+	}
+
 	switch m.Path {
 	case `_internal.cyclone.heartbeat`:
 		c.heartbeat()

@@ -48,6 +48,7 @@ type Cyclone struct {
 	DskData       map[int64]map[string]disk.Disk
 	redis         *redis.Client
 	internalInput chan *legacy.MetricSplit
+	discard       map[string]bool
 }
 
 // AlarmEvent is the datatype for sending out alarm notifications
