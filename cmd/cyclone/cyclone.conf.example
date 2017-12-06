@@ -4,9 +4,6 @@
 cyclone: {
     alarming.destination: 'http://localhost:80/alarms'
     api.version: '1.0'
-    lookup.host: 'localhost'
-    lookup.path: 'api/v1/configuration'
-    lookup.port: '7777'
     metrics.max.age.minutes: '120'
     testmode: 'false'
     handler.queue.length: '5'
@@ -67,9 +64,21 @@ misc: {
 
 # redis settings
 redis: {
+    # redis server address
     connect: 'localhost:6379'
+    # redis database to store records in
     db: '0'
+    # redis connect password
     password: 'sikrit'
+    # expire time for cache records
+    cache.timeout.seconds: 1800
+}
+
+# profile server settings
+eyewall: {
+    host: 'localhost'
+    port: '7777'
+    path: 'api/v1/configuration'
 }
 
 # zookeeper settings
