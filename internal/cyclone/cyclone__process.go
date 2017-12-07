@@ -144,7 +144,7 @@ thrloop:
 			Sourcehost: thr[key].MetaTargethost,
 			Oncall:     thr[key].Oncall,
 			Targethost: thr[key].MetaTargethost,
-			Timestamp:  time.Now().UTC().Format(time.RFC3339Nano),
+			Timestamp:  m.TS.UTC().Format(time.RFC3339Nano),
 			Check:      fmt.Sprintf("cyclone(%s)", m.Path),
 			Monitoring: thr[key].MetaMonitoring,
 			Team:       thr[key].MetaTeam,
