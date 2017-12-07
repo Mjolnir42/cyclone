@@ -31,9 +31,39 @@ runloop:
 				continue runloop
 			}
 			if err := c.process(msg); err != nil {
-				c.Death <- err
-				<-c.Shutdown
-				break runloop
+				// process only fails from invalid data or if the profile
+				// lookup service is unavailable.
+			eyeloop:
+				for {
+					select {
+					// Wait for service to reappear, then try again.
+					case <-c.lookup.WaitEye():
+						if e := c.process(msg); e != nil {
+							// problem is invalid data after all
+							c.Death <- e
+							<-c.Shutdown
+							break runloop
+						}
+						break eyeloop
+					// still handle shutdown requests
+					case <-c.Shutdown:
+						goto drainloop
+					// still handle finished requests
+					case res := <-c.result:
+						if res.err != nil {
+							// alarm sending failed due to internal error
+							if res.internal {
+								c.Death <- res.err
+								<-c.Shutdown
+								break runloop
+							}
+							// alarm sending failed from external error
+							c.resendAlarm(res.alarm, res.trackingID)
+							continue eyeloop
+						}
+						c.updateOffset(res.trackingID)
+					}
+				}
 			}
 		case res := <-c.result:
 			if res.err != nil {
