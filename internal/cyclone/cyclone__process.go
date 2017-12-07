@@ -28,11 +28,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	if msg == nil || msg.Value == nil {
 		logrus.Warnf("Ignoring empty message from: %d", msg.HostID)
 		if msg != nil {
-			c.delay.Use()
-			go func() {
-				c.commit(msg)
-				c.delay.Done()
-			}()
+			c.commit(msg)
 		}
 		return nil
 	}
@@ -49,15 +45,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		metrics.GetOrRegisterMeter(`/metrics/discarded.per.second`,
 			*c.Metrics).Mark(1)
 		// mark as processed
-		c.delay.Use()
-		go func() {
-			msg.Commit <- &erebos.Commit{
-				Topic:     msg.Topic,
-				Partition: msg.Partition,
-				Offset:    msg.Offset,
-			}
-			c.delay.Done()
-		}()
+		c.commit(msg)
 		return nil
 	}
 
@@ -78,6 +66,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 			"[%d]: skipping metric %s with no tags from %d",
 			c.Num, m.Path, m.AssetID,
 		)
+		c.commit(msg)
 		return nil
 	}
 
@@ -88,6 +77,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 			"Cyclone[%d], No thresholds configured for %s from %d",
 			c.Num, m.Path, m.AssetID,
 		)
+		c.commit(msg)
 		return nil
 	} else if err != nil {
 		logrus.Errorf(
@@ -95,6 +85,8 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 				" Lookup service available?",
 			c.Num,
 		)
+		// msg is not committed since processing failed from
+		// external error
 		return err
 	}
 
@@ -188,6 +180,7 @@ thrloop:
 			c.Num, m.Path, m.AssetID,
 		)
 	}
+	c.commit(msg)
 	return nil
 }
 
