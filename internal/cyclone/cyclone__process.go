@@ -71,6 +71,15 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	metrics.GetOrRegisterMeter(`/metrics/processed.per.second`,
 		*c.Metrics).Mark(1)
 
+	// metric has no tags for matching with configuration profiles
+	if len(m.Tags) == 0 {
+		logrus.Debugf(
+			"[%d]: skipping metric %s with no tags from %d",
+			c.Num, m.Path, m.AssetID,
+		)
+		return nil
+	}
+
 	// fetch configuration profile information
 	thr, err := c.lookup.LookupThreshold(m.LookupID())
 	if err == eyewall.ErrUnconfigured {
