@@ -48,6 +48,7 @@ type alarmResult struct {
 // process evaluates a metric and raises alarms as required. Must
 // only be called as goroutine after c.delay.Use()
 func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
+	defer c.delay.Done()
 	b := new(bytes.Buffer)
 	aSlice := []AlarmEvent{a}
 	if err := json.NewEncoder(b).Encode(aSlice); err != nil {
@@ -121,7 +122,6 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 	// otherwise it leaks filehandles
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
-	c.delay.Done()
 	c.result <- &alarmResult{
 		trackingID: trackingID,
 		err:        nil,
