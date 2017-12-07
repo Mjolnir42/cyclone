@@ -15,6 +15,7 @@ import (
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/eyewall"
+	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
 	"gopkg.in/redis.v3"
 )
@@ -38,6 +39,7 @@ type Cyclone struct {
 	Death    chan error
 	Config   *erebos.Config
 	Metrics  *metrics.Registry
+	Limit    *limit.Limit
 	// unexported
 	delay   *delay.Delay
 	redis   *redis.Client

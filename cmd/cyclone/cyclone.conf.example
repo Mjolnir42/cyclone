@@ -6,7 +6,8 @@ cyclone: {
     api.version: '1.0'
     metrics.max.age.minutes: '120'
     testmode: 'false'
-    handler.queue.length: '5'
+    handler.queue.length: '16'
+    post.request.concurrency.limit: '256'
     discard.metrics: [
 	    '/sys/disk/fs',
 	    '/sys/disk/mounts',

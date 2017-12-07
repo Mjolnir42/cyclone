@@ -46,11 +46,17 @@ func (c *Cyclone) sendAlarm(a AlarmEvent) {
 		)
 		return
 	}
+	// acquire resource limit before issuing the POST request
+	c.Limit.Start()
+
 	resp, err := http.Post(
 		c.Config.Cyclone.DestinationURI,
 		`application/json; charset=utf-8`,
 		b,
 	)
+
+	// release resource limit
+	c.Limit.Done()
 
 	if err != nil {
 		logrus.Errorf(

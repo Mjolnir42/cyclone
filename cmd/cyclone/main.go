@@ -27,6 +27,7 @@ import (
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
+	"github.com/mjolnir42/limit"
 	"github.com/rcrowley/go-metrics"
 )
 
@@ -148,6 +149,9 @@ func main() {
 		conf.Cyclone.MetricsMaxAge,
 	) * time.Minute * -1
 
+	// acquire shared concurrency limit
+	lim := limit.NewLimit(conf.Cyclone.ConcurrencyLimit)
+
 	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
 		h := cyclone.Cyclone{
@@ -158,6 +162,7 @@ func main() {
 			Death:    handlerDeath,
 			Config:   &conf,
 			Metrics:  &pfxRegistry,
+			Limit:    lim,
 		}
 		cyclone.Handlers[i] = &h
 		waitdelay.Use()
