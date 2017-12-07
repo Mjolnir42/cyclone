@@ -176,9 +176,8 @@ thrloop:
 			// do not send out alarms in testmode
 			continue thrloop
 		}
-		alrms := metrics.GetOrRegisterMeter(`/alarms.per.second`,
-			*c.Metrics)
-		alrms.Mark(1)
+		metrics.GetOrRegisterMeter(`/alarms.per.second`,
+			*c.Metrics).Mark(1)
 		c.delay.Use()
 		go c.sendAlarm(al)
 	}
