@@ -10,12 +10,9 @@
 package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"net/http"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -90,80 +87,44 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		)
 		return err
 	}
+
+	var evaluations int64
+	evals := metrics.GetOrRegisterMeter(
+		`/evaluations.per.second`,
+		*c.Metrics,
+	)
 	logrus.Debugf(
 		"Cyclone[%d], Forwarding %s from %d for evaluation (%s)",
 		c.Num, m.Path, m.AssetID, m.LookupID(),
 	)
-	evals := metrics.GetOrRegisterMeter(`/evaluations.per.second`,
-		*c.Metrics)
-
-	var evaluations int64
 
 thrloop:
 	for key := range thr {
-		var alarmLevel = "0"
-		var brokenThr int64
 		evalThreshold := false
-		broken := false
-		fVal := ``
 
-		if len(m.Tags) > 0 {
-		tagloop:
-			for _, t := range m.Tags {
-				if !isUUID(t) {
-					continue tagloop
-				}
-				if thr[key].ID == t {
-					evalThreshold = true
-					break tagloop
-				}
-
+		// check if this threshold's ID is found in the metric's tags
+	tagloop:
+		for _, t := range m.Tags {
+			if !isUUID(t) {
+				continue tagloop
 			}
+			if thr[key].ID == t {
+				evalThreshold = true
+				break tagloop
+			}
+
 		}
+
 		// metric is not evaluated against this threshold
 		if !evalThreshold {
 			continue thrloop
 		}
 
-		logrus.Debugf(
-			"Cyclone[%d], Evaluating metric %s from %d"+
-				" against config %s",
-			c.Num, m.Path, m.AssetID, thr[key].ID,
-		)
+		// perform threshold evaluation
+		alarmLevel, value, ev := c.evaluate(m, thr[key])
+		evaluations += ev
 
-	lvlloop:
-		for _, lvl := range []string{
-			`9`, `8`, `7`, `6`, `5`,
-			`4`, `3`, `2`, `1`, `0`,
-		} {
-			thrval, ok := thr[key].Thresholds[lvl]
-			if !ok {
-				continue
-			}
-
-			evaluations++
-			logrus.Debugf(
-				"Cyclone[%d], Checking %s alarmlevel %s",
-				c.Num, thr[key].ID, lvl,
-			)
-			switch m.Type {
-			case `integer`:
-				fallthrough
-			case `long`:
-				broken, fVal = c.cmpInt(thr[key].Predicate,
-					m.Value().(int64),
-					thrval)
-			case `real`:
-				broken, fVal = c.cmpFlp(thr[key].Predicate,
-					m.Value().(float64),
-					thrval)
-			}
-			if broken {
-				alarmLevel = lvl
-				brokenThr = thrval
-				break lvlloop
-			}
-		}
+		// construct alarm
 		al := AlarmEvent{
 			Source: fmt.Sprintf("%s / %s",
 				thr[key].MetaTargethost,
@@ -180,15 +141,16 @@ thrloop:
 			Team:       thr[key].MetaTeam,
 		}
 		al.Level, _ = strconv.ParseInt(alarmLevel, 10, 64)
-		if alarmLevel == `0` {
+		switch al.Level {
+		case 0:
 			al.Message = `Ok.`
-		} else {
+		default:
 			al.Message = fmt.Sprintf(
 				"Metric %s has broken threshold. Value %s %s %d",
 				m.Path,
-				fVal,
+				value,
 				thr[key].Predicate,
-				brokenThr,
+				thr[key].Thresholds[alarmLevel],
 			)
 		}
 		if al.Oncall == `` {
@@ -203,59 +165,7 @@ thrloop:
 			*c.Metrics)
 		alrms.Mark(1)
 		c.delay.Use()
-		go func(a AlarmEvent) {
-			b := new(bytes.Buffer)
-			aSlice := []AlarmEvent{a}
-			if err := json.NewEncoder(b).Encode(aSlice); err != nil {
-				logrus.Errorf(
-					"Cyclone[%d], ERROR json encoding alarm for %s: %s",
-					c.Num, a.EventID, err,
-				)
-				return
-			}
-			resp, err := http.Post(
-				c.Config.Cyclone.DestinationURI,
-				`application/json; charset=utf-8`,
-				b,
-			)
-
-			if err != nil {
-				logrus.Errorf(
-					"Cyclone[%d], ERROR sending alarm for %s: %s",
-					c.Num, a.EventID, err,
-				)
-				return
-			}
-			logrus.Infof(
-				"Cyclone[%d], Dispatched alarm for %s at level %d,"+
-					" returncode was %d",
-				c.Num, a.EventID, a.Level, resp.StatusCode,
-			)
-			if resp.StatusCode >= 209 {
-				// read response body
-				bt, _ := ioutil.ReadAll(resp.Body)
-				logrus.Errorf(
-					"Cyclone[%d], ResponseMsg(%d): %s",
-					c.Num, resp.StatusCode, string(bt),
-				)
-				resp.Body.Close()
-
-				// reset buffer and encode JSON again so it can be
-				// logged
-				b.Reset()
-				json.NewEncoder(b).Encode(aSlice)
-				logrus.Errorf(
-					"Cyclone[%d], RequestJSON: %s",
-					c.Num, b.String(),
-				)
-				return
-			}
-			// ensure http.Response.Body is consumed and closed,
-			// otherwise it leaks filehandles
-			io.Copy(ioutil.Discard, resp.Body)
-			resp.Body.Close()
-			c.delay.Done()
-		}(al)
+		go c.sendAlarm(al)
 	}
 	evals.Mark(evaluations)
 	if evaluations == 0 {
@@ -265,6 +175,16 @@ thrloop:
 		)
 	}
 	return nil
+}
+
+// isUUID validates if a string is one very narrow formatting of a
+// UUID. Other valid formats with braces etc are not accepted.
+func isUUID(s string) bool {
+	const reUUID string = `^[[:xdigit:]]{8}-[[:xdigit:]]{4}-[1-5][[:xdigit:]]{3}-[[:xdigit:]]{4}-[[:xdigit:]]{12}$`
+	const reUNIL string = `^0{8}-0{4}-0{4}-0{4}-0{12}$`
+	re := regexp.MustCompile(fmt.Sprintf("%s|%s", reUUID, reUNIL))
+
+	return re.MatchString(s)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix
