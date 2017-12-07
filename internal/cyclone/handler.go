@@ -27,6 +27,9 @@ func (c *Cyclone) Start() {
 		return
 	}
 
+	c.trackID = make(map[string]int)
+	c.trackACK = make(map[string]*erebos.Transport)
+
 	c.redis = redis.NewClient(&redis.Options{
 		Addr:     c.Config.Redis.Connect,
 		Password: c.Config.Redis.Password,
@@ -47,6 +50,9 @@ func (c *Cyclone) Start() {
 	c.lookup = eyewall.NewLookup(c.Config)
 	defer c.lookup.Close()
 
+	c.result = make(chan *alarmResult,
+		c.Config.Cyclone.HandlerQueueLength,
+	)
 	c.run()
 }
 

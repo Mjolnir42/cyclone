@@ -21,6 +21,7 @@ import (
 	"github.com/mjolnir42/eyewall"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
+	uuid "github.com/satori/go.uuid"
 )
 
 // process evaluates a metric and raises alarms as required
@@ -92,6 +93,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 
 	// start metric evaluation
 	var evaluations int64
+	trackingID := uuid.NewV4().String()
 	evals := metrics.GetOrRegisterMeter(
 		`/evaluations.per.second`,
 		*c.Metrics,
@@ -126,7 +128,16 @@ thrloop:
 
 		// perform threshold evaluation
 		alarmLevel, value, ev := c.evaluate(m, thr[key])
-		evaluations += ev
+		switch ev {
+		case 0:
+			// threshold definition has no thresholds... count this
+			// as one evaluation since this generated an OK event
+			// and the Zookeeper offset commit is handled by
+			// sendAlarm
+			evaluations++
+		default:
+			evaluations += ev
+		}
 
 		// construct alarm
 		al := AlarmEvent{
@@ -170,8 +181,10 @@ thrloop:
 		}
 		metrics.GetOrRegisterMeter(`/alarms.per.second`,
 			*c.Metrics).Mark(1)
+		c.trackID[trackingID]++
+		c.trackACK[trackingID] = msg
 		c.delay.Use()
-		go c.sendAlarm(al)
+		go c.sendAlarm(al, trackingID)
 	}
 	evals.Mark(evaluations)
 	if evaluations == 0 {
@@ -179,8 +192,9 @@ thrloop:
 			"Cyclone[%d], metric %s(%d) matched no configurations",
 			c.Num, m.Path, m.AssetID,
 		)
+		// no evaluations means no alarms, commit offset as processed
+		c.commit(msg)
 	}
-	c.commit(msg)
 	return nil
 }
 

@@ -12,6 +12,7 @@ package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -35,8 +36,18 @@ type AlarmEvent struct {
 	Team       string `json:"team"`
 }
 
-// process evaluates a metric and raises alarms as required
-func (c *Cyclone) sendAlarm(a AlarmEvent) {
+// alarmResult encapsulates the result from a HTTP POST request
+// to the AlarmAPI
+type alarmResult struct {
+	trackingID string
+	err        error
+	internal   bool
+	alarm      *AlarmEvent
+}
+
+// process evaluates a metric and raises alarms as required. Must
+// only be called as goroutine after c.delay.Use()
+func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 	b := new(bytes.Buffer)
 	aSlice := []AlarmEvent{a}
 	if err := json.NewEncoder(b).Encode(aSlice); err != nil {
@@ -44,6 +55,12 @@ func (c *Cyclone) sendAlarm(a AlarmEvent) {
 			"Cyclone[%d], ERROR json encoding alarm for %s: %s",
 			c.Num, a.EventID, err,
 		)
+		c.result <- &alarmResult{
+			trackingID: trackingID,
+			err:        err,
+			internal:   true,
+			alarm:      &a,
+		}
 		return
 	}
 	// acquire resource limit before issuing the POST request
@@ -63,6 +80,11 @@ func (c *Cyclone) sendAlarm(a AlarmEvent) {
 			"Cyclone[%d], ERROR sending alarm for %s: %s",
 			c.Num, a.EventID, err,
 		)
+		c.result <- &alarmResult{
+			trackingID: trackingID,
+			err:        err,
+			alarm:      &a,
+		}
 		return
 	}
 	logrus.Infof(
@@ -73,10 +95,11 @@ func (c *Cyclone) sendAlarm(a AlarmEvent) {
 	if resp.StatusCode >= 209 {
 		// read response body
 		bt, _ := ioutil.ReadAll(resp.Body)
-		logrus.Errorf(
+		err = fmt.Errorf(
 			"Cyclone[%d], ResponseMsg(%d): %s",
 			c.Num, resp.StatusCode, string(bt),
 		)
+		logrus.Errorln(err.Error())
 		resp.Body.Close()
 
 		// reset buffer and encode JSON again so it can be
@@ -87,6 +110,11 @@ func (c *Cyclone) sendAlarm(a AlarmEvent) {
 			"Cyclone[%d], RequestJSON: %s",
 			c.Num, b.String(),
 		)
+		c.result <- &alarmResult{
+			trackingID: trackingID,
+			err:        err,
+			alarm:      &a,
+		}
 		return
 	}
 	// ensure http.Response.Body is consumed and closed,
@@ -94,6 +122,10 @@ func (c *Cyclone) sendAlarm(a AlarmEvent) {
 	io.Copy(ioutil.Discard, resp.Body)
 	resp.Body.Close()
 	c.delay.Done()
+	c.result <- &alarmResult{
+		trackingID: trackingID,
+		err:        nil,
+	}
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix

@@ -12,6 +12,7 @@ package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
 import (
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/eyewall"
@@ -41,10 +42,32 @@ type Cyclone struct {
 	Metrics  *metrics.Registry
 	Limit    *limit.Limit
 	// unexported
-	delay   *delay.Delay
-	redis   *redis.Client
-	lookup  *eyewall.Lookup
-	discard map[string]bool
+	delay    *delay.Delay
+	redis    *redis.Client
+	lookup   *eyewall.Lookup
+	discard  map[string]bool
+	result   chan *alarmResult
+	trackID  map[string]int
+	trackACK map[string]*erebos.Transport
+}
+
+// updateOffset updates the consumer offsets in Kafka once all
+// outstanding messages for trackingID have been processed
+func (c *Cyclone) updateOffset(trackingID string) {
+	if _, ok := c.trackID[trackingID]; !ok {
+		logrus.Warnf("Unknown trackingID: %s", trackingID)
+		return
+	}
+	// decrement outstanding successes for trackingID
+	c.trackID[trackingID]--
+	// check if trackingID has been fully processed
+	if c.trackID[trackingID] == 0 {
+		// commit processed offset to Zookeeper
+		c.commit(c.trackACK[trackingID])
+		// cleanup offset tracking
+		delete(c.trackID, trackingID)
+		delete(c.trackACK, trackingID)
+	}
 }
 
 // commit marks a message as fully processed

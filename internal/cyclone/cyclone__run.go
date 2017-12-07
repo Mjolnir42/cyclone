@@ -8,6 +8,11 @@
  */
 
 package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
+import (
+	"time"
+
+	"github.com/Sirupsen/logrus"
+)
 
 // run is the event loop for Cyclone
 func (c *Cyclone) run() {
@@ -30,6 +35,17 @@ runloop:
 				<-c.Shutdown
 				break runloop
 			}
+		case res := <-c.result:
+			if res.err != nil {
+				// alarm sending failed due to internal error
+				if res.internal {
+					c.Death <- res.err
+					<-c.Shutdown
+					break runloop
+				}
+				// alarm sending failed from external error
+			}
+			c.updateOffset(res.trackingID)
 		}
 	}
 
@@ -41,9 +57,30 @@ drainloop:
 				// channel is closed
 				break drainloop
 			}
-			c.process(msg)
+			if err := c.process(msg); err != nil {
+				logrus.Errorln(err.Error())
+			}
 		}
 	}
+	// drain result channel from http goroutines in extra
+	// loop since the result channel will not be closed
+	// by main
+resultdrain:
+	for {
+		select {
+		case res := <-c.result:
+			if res.err != nil {
+				logrus.Errorln(res.err.Error())
+				continue resultdrain
+			}
+			c.updateOffset(res.trackingID)
+		// allow for http timeouts to occur
+		case <-time.After(2 * time.Second):
+			// TODO: use configurable http timeout
+			break resultdrain
+		}
+	}
+
 	c.delay.Wait()
 }
 
