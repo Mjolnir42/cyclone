@@ -37,6 +37,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		return nil
 	}
 
+	// unmarshal metric
 	m := &legacy.MetricSplit{}
 	if err := json.Unmarshal(msg.Value, m); err != nil {
 		logrus.Errorf("Invalid data: %s", err.Error())
@@ -60,7 +61,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		return nil
 	}
 
-	// handle heartbeats
+	// handle heartbeats TODO
 	switch m.Path {
 	case `_internal.cyclone.heartbeat`:
 		c.heartbeat()
@@ -97,6 +98,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		return err
 	}
 
+	// start metric evaluation
 	var evaluations int64
 	evals := metrics.GetOrRegisterMeter(
 		`/evaluations.per.second`,
@@ -107,6 +109,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		c.Num, m.Path, m.AssetID, m.LookupID(),
 	)
 
+	// loop over all returned threshold definitions
 thrloop:
 	for key := range thr {
 		evalThreshold := false
@@ -165,7 +168,10 @@ thrloop:
 		if al.Oncall == `` {
 			al.Oncall = `No oncall information available`
 		}
+
+		// update evalutation timestamp for ID in local cache
 		c.updateEval(thr[key].ID)
+
 		if c.Config.Cyclone.TestMode {
 			// do not send out alarms in testmode
 			continue thrloop
