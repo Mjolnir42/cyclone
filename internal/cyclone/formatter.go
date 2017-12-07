@@ -38,6 +38,28 @@ func FormatMetrics(batch *legacy.PluginMetricBatch) func(string, interface{}) {
 					IntVal: value.Value(),
 				},
 			})
+		case *metrics.StandardHistogram:
+			value := v.(*metrics.StandardHistogram)
+			batch.Metrics = append(batch.Metrics, legacy.PluginMetric{
+				Type:   `float`,
+				Metric: fmt.Sprintf("%s/mean", metric),
+				Value: legacy.MetricValue{
+					FlpVal: (value.Mean() / 1000000000),
+				},
+			}, legacy.PluginMetric{
+				Type:   `float`,
+				Metric: fmt.Sprintf("%s/p99", metric),
+				Value: legacy.MetricValue{
+					FlpVal: (value.Percentile(0.99) / 1000000000),
+				},
+			}, legacy.PluginMetric{
+				Type:   `float`,
+				Metric: fmt.Sprintf("%s/max", metric),
+				Value: legacy.MetricValue{
+					FlpVal: (float64(value.Max()) / 1000000000),
+				},
+			})
+			value.Clear()
 		}
 	}
 }

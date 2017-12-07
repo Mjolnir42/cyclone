@@ -181,6 +181,14 @@ thrloop:
 		}
 		metrics.GetOrRegisterMeter(`/alarms.per.second`,
 			*c.Metrics).Mark(1)
+
+		metrics.GetOrRegisterHistogram(
+			`/alarm.delay.seconds`,
+			*c.Metrics,
+			metrics.NewExpDecaySample(1028, 0.03),
+		).Update(
+			time.Now().UTC().Sub(m.TS.UTC()).Nanoseconds(),
+		)
 		c.trackID[trackingID]++
 		c.trackACK[trackingID] = msg
 		c.delay.Use()

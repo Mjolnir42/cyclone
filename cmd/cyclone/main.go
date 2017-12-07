@@ -132,6 +132,8 @@ func main() {
 		pfxRegistry)
 	metrics.NewRegisteredMeter(`/alarms.per.second`,
 		pfxRegistry)
+	metrics.NewRegisteredHistogram(`/alarm.delay.seconds`,
+		pfxRegistry, metrics.NewExpDecaySample(1028, 0.03))
 	metrics.GetOrRegisterGauge(`/alarmapi.error`,
 		pfxRegistry).Update(0)
 
