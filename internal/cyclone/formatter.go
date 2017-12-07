@@ -29,6 +29,15 @@ func FormatMetrics(batch *legacy.PluginMetricBatch) func(string, interface{}) {
 					FlpVal: value.Rate1(),
 				},
 			})
+		case *metrics.StandardGauge:
+			value := v.(*metrics.StandardGauge)
+			batch.Metrics = append(batch.Metrics, legacy.PluginMetric{
+				Type:   `int`,
+				Metric: metric,
+				Value: legacy.MetricValue{
+					IntVal: value.Value(),
+				},
+			})
 		}
 	}
 }

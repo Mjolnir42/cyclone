@@ -132,6 +132,8 @@ func main() {
 		pfxRegistry)
 	metrics.NewRegisteredMeter(`/alarms.per.second`,
 		pfxRegistry)
+	metrics.GetOrRegisterGauge(`/alarmapi.error`,
+		pfxRegistry).Update(0)
 
 	// start metric socket
 	ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath,

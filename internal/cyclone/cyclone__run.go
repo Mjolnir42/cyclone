@@ -44,6 +44,8 @@ runloop:
 					break runloop
 				}
 				// alarm sending failed from external error
+				c.resendAlarm(res.alarm, res.trackingID)
+				continue runloop
 			}
 			c.updateOffset(res.trackingID)
 		}
