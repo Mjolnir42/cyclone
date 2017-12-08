@@ -10,11 +10,13 @@ package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/eyewall"
 	"gopkg.in/redis.v3"
+	resty "gopkg.in/resty.v0"
 )
 
 // Implementation of the erebos.Handler interface
@@ -26,6 +28,20 @@ func (c *Cyclone) Start() {
 		<-c.Shutdown
 		return
 	}
+
+	c.client = resty.New()
+	c.client = c.client.SetRedirectPolicy(
+		resty.FlexibleRedirectPolicy(15)).
+		SetDisableWarn(true).
+		SetRetryCount(c.Config.Cyclone.RetryCount).
+		SetRetryWaitTime(
+			time.Duration(c.Config.Cyclone.RetryMinWaitTime)*
+				time.Millisecond).
+		SetRetryMaxWaitTime(
+			time.Duration(c.Config.Cyclone.RetryMaxWaitTime)*
+				time.Millisecond).
+		SetHeader(`Content-Type`, `application/json`).
+		SetContentLength(true)
 
 	c.trackID = make(map[string]int)
 	c.trackACK = make(map[string]*erebos.Transport)

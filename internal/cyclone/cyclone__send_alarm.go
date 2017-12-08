@@ -13,9 +13,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io"
-	"io/ioutil"
-	"net/http"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -66,14 +63,17 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 		}
 		return
 	}
+
+	r := c.client.SetTimeout(
+		time.Duration(c.Config.Cyclone.RequestTimeout) *
+			time.Millisecond).
+		R()
+
 	// acquire resource limit before issuing the POST request
 	c.Limit.Start()
 
-	resp, err := http.Post(
-		c.Config.Cyclone.DestinationURI,
-		`application/json; charset=utf-8`,
-		b,
-	)
+	resp, err := r.SetBody(b).
+		Post(c.Config.Cyclone.DestinationURI)
 
 	// release resource limit
 	c.Limit.Done()
@@ -95,15 +95,14 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 			" returncode was %d",
 		c.Num, a.EventID, a.Level, resp.StatusCode,
 	)
-	if resp.StatusCode >= 209 {
+	if resp.StatusCode() >= 209 {
 		// read response body
-		bt, _ := ioutil.ReadAll(resp.Body)
+		bt := resp.Body()
 		err = fmt.Errorf(
 			"Cyclone[%d], ResponseMsg(%d): %s",
-			c.Num, resp.StatusCode, string(bt),
+			c.Num, resp.StatusCode(), string(bt),
 		)
 		logrus.Errorln(err.Error())
-		resp.Body.Close()
 
 		// reset buffer and encode JSON again so it can be
 		// logged
@@ -114,7 +113,7 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 			c.Num, b.String(),
 		)
 		// 4xx errors are caused on this side, abort
-		if resp.StatusCode < 500 {
+		if resp.StatusCode() < 500 {
 			c.result <- &alarmResult{
 				trackingID: trackingID,
 				err:        err,
@@ -130,10 +129,9 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 		}
 		return
 	}
-	// ensure http.Response.Body is consumed and closed,
-	// otherwise it leaks filehandles
-	io.Copy(ioutil.Discard, resp.Body)
-	resp.Body.Close()
+
+	// ensure http.Response.Body is consumed and closed
+	_ = resp.Body()
 	c.result <- &alarmResult{
 		trackingID: trackingID,
 		err:        nil,
@@ -166,11 +164,14 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 		// increase resendDelay for after first attempt
 		resendDelay = 5 * time.Second
 
-		resp, err := http.Post(
-			c.Config.Cyclone.DestinationURI,
-			`application/json; charset=utf-8`,
-			b,
-		)
+		r := c.client.SetTimeout(
+			time.Duration(c.Config.Cyclone.RequestTimeout) *
+				time.Millisecond).
+			R()
+
+		resp, err := r.SetBody(b).
+			Post(c.Config.Cyclone.DestinationURI)
+
 		if err != nil {
 			logrus.Errorf(
 				"Cyclone[%d], ERROR sending alarm for %s: %s",
@@ -178,13 +179,12 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 			)
 			continue
 		}
-		if resp.StatusCode >= 209 {
-			bt, _ := ioutil.ReadAll(resp.Body)
+		if resp.StatusCode() >= 209 {
+			bt := resp.Body()
 			logrus.Errorf(
 				"Cyclone[%d], ResponseMsg(%d): %s",
-				c.Num, resp.StatusCode, string(bt),
+				c.Num, resp.StatusCode(), string(bt),
 			)
-			resp.Body.Close()
 			continue
 		}
 		broken = false

@@ -107,8 +107,9 @@ resultdrain:
 			}
 			c.updateOffset(res.trackingID)
 		// allow for http timeouts to occur
-		case <-time.After(2 * time.Second):
-			// TODO: use configurable http timeout
+		case <-time.After(300 +
+			time.Duration(c.Config.Cyclone.RequestTimeout)*
+				time.Millisecond):
 			break resultdrain
 		}
 	}

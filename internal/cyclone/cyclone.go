@@ -19,6 +19,7 @@ import (
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
 	"gopkg.in/redis.v3"
+	resty "gopkg.in/resty.v0"
 )
 
 // Handlers is the registry of running application handlers
@@ -45,6 +46,7 @@ type Cyclone struct {
 	delay    *delay.Delay
 	redis    *redis.Client
 	lookup   *eyewall.Lookup
+	client   *resty.Client
 	discard  map[string]bool
 	result   chan *alarmResult
 	trackID  map[string]int
