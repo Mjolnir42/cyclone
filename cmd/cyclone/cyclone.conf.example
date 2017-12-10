@@ -63,6 +63,18 @@ misc: {
     produce.metrics: 'true'
 }
 
+# redis settings
+redis: {
+    # redis server address
+    connect: 'localhost:6379'
+    # redis database to store records in
+    db: '0'
+    # redis connect password
+    password: 'sikrit'
+    # expire time for cache records
+    cache.timeout.seconds: 1800
+}
+
 # profile server settings
 eyewall: {
     host: 'localhost'
