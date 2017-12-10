@@ -38,7 +38,15 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	if erebos.IsHeartbeat(msg) {
 		c.delay.Use()
 		go func() {
-			c.lookup.Heartbeat(`cyclone`, c.Num, msg.Value)
+			c.lookup.Heartbeat(func() string {
+				switch c.Config.Misc.InstanceName {
+				case ``:
+					return `cyclone`
+				default:
+					return fmt.Sprintf("cyclone/%s",
+						c.Config.Misc.InstanceName)
+				}
+			}(), c.Num, msg.Value)
 			c.delay.Done()
 		}()
 		return nil
