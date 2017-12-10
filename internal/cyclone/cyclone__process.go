@@ -34,6 +34,16 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		return nil
 	}
 
+	// handle heartbeat messages
+	if erebos.IsHeartbeat(msg) {
+		c.delay.Use()
+		go func() {
+			c.lookup.Heartbeat(`cyclone`, c.Num, msg.Value)
+			c.delay.Done()
+		}()
+		return nil
+	}
+
 	// unmarshal metric
 	m := &legacy.MetricSplit{}
 	if err := json.Unmarshal(msg.Value, m); err != nil {
@@ -47,13 +57,6 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 			*c.Metrics).Mark(1)
 		// mark as processed
 		c.commit(msg)
-		return nil
-	}
-
-	// handle heartbeats TODO
-	switch m.Path {
-	case `_internal.cyclone.heartbeat`:
-		c.heartbeat()
 		return nil
 	}
 

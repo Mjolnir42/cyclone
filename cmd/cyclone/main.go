@@ -190,8 +190,7 @@ func main() {
 		)
 	}()
 
-	heartbeat := time.Tick(5 * time.Second)
-	beatcount := 0
+	heartbeat := time.Tick(10 * time.Second)
 
 	// the main loop
 	fault := false
@@ -208,11 +207,14 @@ runloop:
 			fault = true
 			break runloop
 		case <-heartbeat:
-			// 32bit time_t held 68years at one tick per second. This
-			// should hold 2^32 * 5 * 68 years till overflow
-			cyclone.Handlers[beatcount%runtime.NumCPU()].
-				InputChannel() <- newHeartbeat()
-			beatcount++
+			for i := range cyclone.Handlers {
+				// do not block on heartbeats
+				waitdelay.Use()
+				go func(i int) {
+					cyclone.Handlers[i].InputChannel() <- erebos.NewHeartbeat()
+					waitdelay.Done()
+				}(i)
+			}
 		}
 	}
 
