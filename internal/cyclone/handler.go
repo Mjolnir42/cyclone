@@ -15,7 +15,6 @@ import (
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/eyewall"
-	"gopkg.in/redis.v3"
 	resty "gopkg.in/resty.v0"
 )
 
@@ -45,18 +44,6 @@ func (c *Cyclone) Start() {
 
 	c.trackID = make(map[string]int)
 	c.trackACK = make(map[string]*erebos.Transport)
-
-	c.redis = redis.NewClient(&redis.Options{
-		Addr:     c.Config.Redis.Connect,
-		Password: c.Config.Redis.Password,
-		DB:       c.Config.Redis.DB,
-	})
-	if _, err := c.redis.Ping().Result(); err != nil {
-		c.Death <- err
-		<-c.Shutdown
-		return
-	}
-	defer c.redis.Close()
 
 	c.delay = delay.NewDelay()
 	c.discard = make(map[string]bool)

@@ -18,7 +18,6 @@ import (
 	"github.com/mjolnir42/eyewall"
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
-	"gopkg.in/redis.v3"
 	resty "gopkg.in/resty.v0"
 )
 
@@ -44,7 +43,6 @@ type Cyclone struct {
 	Limit    *limit.Limit
 	// unexported
 	delay    *delay.Delay
-	redis    *redis.Client
 	lookup   *eyewall.Lookup
 	client   *resty.Client
 	discard  map[string]bool
