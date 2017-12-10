@@ -176,7 +176,7 @@ thrloop:
 		}
 
 		// update evalutation timestamp for ID in local cache
-		c.updateEval(thr[key].ID)
+		c.lookup.Evaluated(thr[key].ID)
 
 		if c.Config.Cyclone.TestMode {
 			// do not send out alarms in testmode
