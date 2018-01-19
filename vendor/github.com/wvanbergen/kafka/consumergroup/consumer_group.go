@@ -43,8 +43,8 @@ func (cgc *Config) Validate() error {
 		return sarama.ConfigurationError("ZookeeperTimeout should have a duration > 0")
 	}
 
-	if cgc.Offsets.CommitInterval <= 0 {
-		return sarama.ConfigurationError("CommitInterval should have a duration > 0")
+	if cgc.Offsets.CommitInterval < 0 {
+		return sarama.ConfigurationError("CommitInterval should have a duration >= 0")
 	}
 
 	if cgc.Offsets.Initial != sarama.OffsetOldest && cgc.Offsets.Initial != sarama.OffsetNewest {
@@ -74,7 +74,7 @@ type ConsumerGroup struct {
 	singleShutdown sync.Once
 
 	messages chan *sarama.ConsumerMessage
-	errors   chan *sarama.ConsumerError
+	errors   chan error
 	stopper  chan struct{}
 
 	consumers kazoo.ConsumergroupInstanceList
@@ -145,7 +145,7 @@ func JoinConsumerGroup(name string, topics []string, zookeeper []string, config 
 		instance: instance,
 
 		messages: make(chan *sarama.ConsumerMessage, config.ChannelBufferSize),
-		errors:   make(chan *sarama.ConsumerError, config.ChannelBufferSize),
+		errors:   make(chan error, config.ChannelBufferSize),
 		stopper:  make(chan struct{}),
 	}
 
@@ -187,7 +187,7 @@ func (cg *ConsumerGroup) Messages() <-chan *sarama.ConsumerMessage {
 }
 
 // Returns a channel that you can read to obtain events from Kafka to process.
-func (cg *ConsumerGroup) Errors() <-chan *sarama.ConsumerError {
+func (cg *ConsumerGroup) Errors() <-chan error {
 	return cg.errors
 }
 
@@ -246,6 +246,10 @@ func (cg *ConsumerGroup) CommitUpto(message *sarama.ConsumerMessage) error {
 	return nil
 }
 
+func (cg *ConsumerGroup) FlushOffsets() error {
+	return cg.offsetManager.Flush()
+}
+
 func (cg *ConsumerGroup) topicListConsumer(topics []string) {
 	for {
 		select {
@@ -295,7 +299,7 @@ func (cg *ConsumerGroup) topicListConsumer(topics []string) {
 	}
 }
 
-func (cg *ConsumerGroup) topicConsumer(topic string, messages chan<- *sarama.ConsumerMessage, errors chan<- *sarama.ConsumerError, stopper <-chan struct{}) {
+func (cg *ConsumerGroup) topicConsumer(topic string, messages chan<- *sarama.ConsumerMessage, errors chan<- error, stopper <-chan struct{}) {
 	defer cg.wg.Done()
 
 	select {
@@ -370,23 +374,38 @@ func (cg *ConsumerGroup) consumePartition(topic string, partition int32, nextOff
 }
 
 // Consumes a partition
-func (cg *ConsumerGroup) partitionConsumer(topic string, partition int32, messages chan<- *sarama.ConsumerMessage, errors chan<- *sarama.ConsumerError, wg *sync.WaitGroup, stopper <-chan struct{}) {
+func (cg *ConsumerGroup) partitionConsumer(topic string, partition int32, messages chan<- *sarama.ConsumerMessage, errors chan<- error, wg *sync.WaitGroup, stopper <-chan struct{}) {
 	defer wg.Done()
 
-	select {
-	case <-stopper:
-		return
-	default:
-	}
-
-	for maxRetries, tries := int(cg.config.Offsets.ProcessingTimeout/time.Second), 0; tries < maxRetries; tries++ {
-		if err := cg.instance.ClaimPartition(topic, partition); err == nil {
-			break
-		} else if err == kazoo.ErrPartitionClaimedByOther && tries+1 < maxRetries {
-			time.Sleep(1 * time.Second)
-		} else {
-			cg.Logf("%s/%d :: FAILED to claim the partition: %s\n", topic, partition, err)
+	// Since ProcessingTimeout is the amount of time we'll wait for the final batch
+	// of messages to be processed before releasing a partition, we need to wait slightly
+	// longer than that before timing out here to ensure that another consumer has had
+	// enough time to release the partition. Hence, +2 seconds.
+	maxRetries := int(cg.config.Offsets.ProcessingTimeout/time.Second) + 2
+partitionClaimLoop:
+	for tries := 0; tries < maxRetries; tries++ {
+		select {
+		case <-stopper:
 			return
+		case <-time.After(1 * time.Second):
+			if err := cg.instance.ClaimPartition(topic, partition); err == nil {
+				break partitionClaimLoop
+			} else if tries+1 < maxRetries {
+				if err == kazoo.ErrPartitionClaimedByOther {
+					// Another consumer still owns this partition. We should wait longer for it to release it.
+				} else {
+					// An unexpected error occurred. Log it and continue trying until we hit the timeout.
+					cg.Logf("%s/%d :: FAILED to claim partition on attempt %v of %v; retrying in 1 second. Error: %v", topic, partition, tries+1, maxRetries, err)
+				}
+			} else {
+				cg.Logf("%s/%d :: FAILED to claim the partition: %s\n", topic, partition, err)
+				cg.errors <- &sarama.ConsumerError{
+					Topic:     topic,
+					Partition: partition,
+					Err:       err,
+				}
+				return
+			}
 		}
 	}
 

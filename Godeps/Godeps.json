@@ -8,26 +8,27 @@
 	"Deps": [
 		{
 			"ImportPath": "github.com/Shopify/sarama",
-			"Comment": "v1.12.0-25-g1517403",
-			"Rev": "15174039fd207656a0f97f52bc78ec7793deeada"
+			"Comment": "v1.15.0",
+			"Rev": "3b1b38866a79f06deddf0487d5c27ba0697ccd65"
 		},
 		{
 			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.10.0-38-g3ec0642",
-			"Rev": "3ec0642a7fb6488f65b06f9040adc67e3990296a"
+			"Comment": "v1.0.4",
+			"Rev": "d682213848ed68c0a260ca37d6dd5ace8423f5ba"
 		},
 		{
 			"ImportPath": "github.com/client9/reopen",
-			"Rev": "4b86f9c0ead51cc410d05655596e30f281ed9071"
+			"Rev": "1a6ccbeaae3f56aa0058f5491382cb21726e214e"
 		},
 		{
 			"ImportPath": "github.com/davecgh/go-spew/spew",
-			"Rev": "5215b55f46b2b919f50a1df0eaa5886afe4e3b3d"
+			"Comment": "v1.1.0",
+			"Rev": "346938d642f2ec3594ed81d874461961cd0faa76"
 		},
 		{
 			"ImportPath": "github.com/eapache/go-resiliency/breaker",
-			"Comment": "v1.0.0-4-gb86b1ec",
-			"Rev": "b86b1ec0dd4209a588dc1285cdd471e73525c0b3"
+			"Comment": "v1.0.0",
+			"Rev": "6800482f2c813e689c88b7ed3282262385011890"
 		},
 		{
 			"ImportPath": "github.com/eapache/go-xerial-snappy",
@@ -35,34 +36,68 @@
 		},
 		{
 			"ImportPath": "github.com/eapache/queue",
-			"Comment": "v1.0.2",
-			"Rev": "ded5959c0d4e360646dc9e9908cff48666781367"
+			"Comment": "v1.1.0",
+			"Rev": "44cc805cf13205b55f69e14bcb69867d1ae92f98"
+		},
+		{
+			"ImportPath": "github.com/go-redis/redis",
+			"Comment": "v6.8.2",
+			"Rev": "4021ace05686f632ff17fd824bbed229fc474cf8"
+		},
+		{
+			"ImportPath": "github.com/go-redis/redis/internal",
+			"Comment": "v6.8.2",
+			"Rev": "4021ace05686f632ff17fd824bbed229fc474cf8"
+		},
+		{
+			"ImportPath": "github.com/go-redis/redis/internal/consistenthash",
+			"Comment": "v6.8.2",
+			"Rev": "4021ace05686f632ff17fd824bbed229fc474cf8"
+		},
+		{
+			"ImportPath": "github.com/go-redis/redis/internal/hashtag",
+			"Comment": "v6.8.2",
+			"Rev": "4021ace05686f632ff17fd824bbed229fc474cf8"
+		},
+		{
+			"ImportPath": "github.com/go-redis/redis/internal/pool",
+			"Comment": "v6.8.2",
+			"Rev": "4021ace05686f632ff17fd824bbed229fc474cf8"
+		},
+		{
+			"ImportPath": "github.com/go-redis/redis/internal/proto",
+			"Comment": "v6.8.2",
+			"Rev": "4021ace05686f632ff17fd824bbed229fc474cf8"
 		},
 		{
 			"ImportPath": "github.com/golang/snappy",
-			"Rev": "774a97396f7bfa4165e9dcf4bfa0747ea3edcc02"
+			"Rev": "553a641470496b2327abcac10b36396bd98e45c9"
 		},
 		{
 			"ImportPath": "github.com/klauspost/crc32",
-			"Comment": "v1.0",
-			"Rev": "19b0b332c9e4516a6370a0456e6182c3b5036720"
+			"Comment": "v1.1",
+			"Rev": "cb6bfca970f6908083f26f39a79009d608efd5cd"
+		},
+		{
+			"ImportPath": "github.com/mjolnir42/delay",
+			"Rev": "aaeffbd84005ac6e832583c53b2ea34b058bf06d"
 		},
 		{
 			"ImportPath": "github.com/mjolnir42/erebos",
-			"Rev": "ffcc2c405e6acb78b0091842813e905be7a815bb"
+			"Rev": "c976ae9cab307435fc64440cb2c6c2bd54888205"
 		},
 		{
 			"ImportPath": "github.com/mjolnir42/legacy",
-			"Rev": "0b3af6338fa9cbb00c6ed1688d4112add7ce0276"
+			"Rev": "28d993f90e753a95c85a112f1175215a578d56b9"
 		},
 		{
 			"ImportPath": "github.com/nahanni/go-ucl",
-			"Rev": "9e7dd975dcf71d9f184a059eee9cac3384b6f612"
+			"Rev": "3788fcf0dad8868285c3ebb779fae2856b48da61"
 		},
 		{
 			"ImportPath": "github.com/pierrec/lz4",
-			"Comment": "v1.0-10-g08c2793",
-			"Rev": "08c27939df1bd95e881e2c2367a749964ad1fceb"
+			"Comment": "v1.1",
+			"Rev": "2fcda4cb7018ce05a25959d2fe08c83e3329f169"
 		},
 		{
 			"ImportPath": "github.com/pierrec/xxHash/xxHash32",
@@ -71,52 +106,35 @@
 		},
 		{
 			"ImportPath": "github.com/rcrowley/go-metrics",
-			"Rev": "51425a2415d21afadfd55cd93432c0bc69e9598d"
+			"Rev": "e181e095bae94582363434144c61a9653aff6e50"
 		},
 		{
 			"ImportPath": "github.com/samuel/go-zookeeper/zk",
-			"Rev": "218e9c81c0dd8b3b18172b2bbfad92cc7d6db55f"
+			"Rev": "471cd4e61d7a78ece1791fa5faa0345dc8c7d5a5"
 		},
 		{
 			"ImportPath": "github.com/wvanbergen/kafka/consumergroup",
-			"Rev": "6df90f1eb4669ee0ae66616f90e64770da8ff462"
+			"Rev": "e2edea948ddfee841ea9a263b32ccca15f7d6c2f"
 		},
 		{
 			"ImportPath": "github.com/wvanbergen/kazoo-go",
-			"Rev": "0f768712ae6f76454f987c3356177e138df258f8"
+			"Rev": "494a179ad10a1a52daa7536a82cc215bc728c399"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ssh/terminal",
+			"Rev": "ee41a25c63fb5b74abf2213abb6dee3751e6ac4a"
 		},
 		{
 			"ImportPath": "golang.org/x/sys/unix",
-			"Rev": "002cbb5f952456d0c50e0d2aff17ea5eca716979"
+			"Rev": "2c42eef0765b9837fbdab12011af7830f55f88f0"
 		},
 		{
 			"ImportPath": "gopkg.in/bsm/ratelimit.v1",
 			"Rev": "db14e161995a5177acef654cb0dd785e8ee8bc22"
 		},
 		{
-			"ImportPath": "gopkg.in/redis.v3",
-			"Comment": "v3.6.4",
-			"Rev": "b5e368500d0a508ef8f16e9c2d4025a8a46bcc29"
-		},
-		{
-			"ImportPath": "gopkg.in/redis.v3/internal",
-			"Comment": "v3.6.4",
-			"Rev": "b5e368500d0a508ef8f16e9c2d4025a8a46bcc29"
-		},
-		{
-			"ImportPath": "gopkg.in/redis.v3/internal/consistenthash",
-			"Comment": "v3.6.4",
-			"Rev": "b5e368500d0a508ef8f16e9c2d4025a8a46bcc29"
-		},
-		{
-			"ImportPath": "gopkg.in/redis.v3/internal/hashtag",
-			"Comment": "v3.6.4",
-			"Rev": "b5e368500d0a508ef8f16e9c2d4025a8a46bcc29"
-		},
-		{
-			"ImportPath": "gopkg.in/redis.v3/internal/pool",
-			"Comment": "v3.6.4",
-			"Rev": "b5e368500d0a508ef8f16e9c2d4025a8a46bcc29"
+			"ImportPath": "golang.org/x/sys/windows",
+			"Rev": "2c42eef0765b9837fbdab12011af7830f55f88f0"
 		}
 	]
 }

@@ -13,10 +13,11 @@ confluent/stop: confluent/rest/stop confluent/registry/stop confluent/kafka/stop
 # Download & extract tasks
 
 confluent/confluent.tgz:
-	mkdir -p confluent && wget http://packages.confluent.io/archive/1.0/confluent-1.0-2.10.4.tar.gz -O confluent/confluent.tgz
+	mkdir -p confluent && wget http://packages.confluent.io/archive/3.0/confluent-3.0.1-2.11.tar.gz -O confluent/confluent.tgz
 
 confluent/EXTRACTED: confluent/confluent.tgz
 	tar xzf confluent/confluent.tgz -C confluent --strip-components 1 && mkdir confluent/logs && touch confluent/EXTRACTED
+	echo "delete.topic.enable=true" >> confluent/etc/kafka/server.properties
 
 # Zookeeper tasks
 
@@ -69,13 +70,10 @@ errcheck:
 fmt:
 	@if [ -n "$$(go fmt ./...)" ]; then echo 'Please run go fmt on your code.' && exit 1; fi
 
-dependencies: dependencies/errcheck dependencies/vet dependencies/get
+dependencies: dependencies/errcheck dependencies/get
 
 dependencies/errcheck:
 	go get github.com/kisielk/errcheck
-
-dependencies/vet:
-	go get golang.org/x/tools/cmd/vet
 
 dependencies/get:
 	go get -t ./...

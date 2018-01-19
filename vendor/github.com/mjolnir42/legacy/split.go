@@ -46,7 +46,11 @@ func (m *MetricBatch) Split() []MetricSplit {
 				split.Type = `real`
 				split.Path = fMetric.Metric
 				split.Val.FlpVal = fMetric.Value
-				split.Tags = []string{fMetric.Subtype}
+				if fMetric.Subtype != `` {
+					split.Tags = []string{fMetric.Subtype}
+				} else {
+					split.Tags = []string{}
+				}
 				c <- split
 			}
 			wg.Done()
@@ -63,7 +67,11 @@ func (m *MetricBatch) Split() []MetricSplit {
 				split.Type = `string`
 				split.Path = sMetric.Metric
 				split.Val.StrVal = sMetric.Value
-				split.Tags = []string{sMetric.Subtype}
+				if sMetric.Subtype != `` {
+					split.Tags = []string{sMetric.Subtype}
+				} else {
+					split.Tags = []string{}
+				}
 				c <- split
 			}
 			wg.Done()
@@ -80,7 +88,11 @@ func (m *MetricBatch) Split() []MetricSplit {
 				split.Type = `integer`
 				split.Path = iMetric.Metric
 				split.Val.IntVal = iMetric.Value
-				split.Tags = []string{iMetric.Subtype}
+				if iMetric.Subtype != `` {
+					split.Tags = []string{iMetric.Subtype}
+				} else {
+					split.Tags = []string{}
+				}
 				c <- split
 			}
 			wg.Done()

@@ -98,6 +98,8 @@ func NewFileWriterMode(name string, mode os.FileMode) (*FileWriter, error) {
 // BufferedFileWriter is buffer writer than can be reopned
 type BufferedFileWriter struct {
 	mu         sync.Mutex
+	quitChan   chan bool
+	done       bool
 	OrigWriter *FileWriter
 	BufWriter  *bufio.Writer
 }
@@ -118,7 +120,9 @@ func (bw *BufferedFileWriter) Reopen() error {
 
 // Close flushes the internal buffer and closes the destination file
 func (bw *BufferedFileWriter) Close() error {
+	bw.quitChan <- true
 	bw.mu.Lock()
+	bw.done = true
 	bw.BufWriter.Flush()
 	bw.OrigWriter.f.Close()
 	bw.mu.Unlock()
@@ -141,14 +145,27 @@ func (bw *BufferedFileWriter) Write(p []byte) (int, error) {
 	return n, err
 }
 
+// Flush flushes the buffer.
+func (bw *BufferedFileWriter) Flush() {
+	bw.mu.Lock()
+	// could add check if bw.done already
+	//  should never happen
+	bw.BufWriter.Flush()
+	bw.OrigWriter.f.Sync()
+	bw.mu.Unlock()
+}
+
 // flushDaemon periodically flushes the log file buffers.
-//  props to glog
-func (bw *BufferedFileWriter) flushDaemon() {
-	for range time.NewTicker(flushInterval).C {
-		bw.mu.Lock()
-		bw.BufWriter.Flush()
-		bw.OrigWriter.f.Sync()
-		bw.mu.Unlock()
+func (bw *BufferedFileWriter) flushDaemon(interval time.Duration) {
+	ticker := time.NewTicker(interval)
+	for {
+		select {
+		case <-bw.quitChan:
+			ticker.Stop()
+			return
+		case <-ticker.C:
+			bw.Flush()
+		}
 	}
 }
 
@@ -157,13 +174,19 @@ const flushInterval = 30 * time.Second
 
 // NewBufferedFileWriter opens a buffered file that is periodically
 //  flushed.
-// TODO: allow size and interval to be passed in.
 func NewBufferedFileWriter(w *FileWriter) *BufferedFileWriter {
+	return NewBufferedFileWriterSize(w, bufferSize, flushInterval)
+}
+
+// NewBufferedFileWriterSize opens a buffered file with the given size that is periodically
+//  flushed on the given interval.
+func NewBufferedFileWriterSize(w *FileWriter, size int, flush time.Duration) *BufferedFileWriter {
 	bw := BufferedFileWriter{
+		quitChan:   make(chan bool, 1),
 		OrigWriter: w,
-		BufWriter:  bufio.NewWriterSize(w, bufferSize),
+		BufWriter:  bufio.NewWriterSize(w, size),
 	}
-	go bw.flushDaemon()
+	go bw.flushDaemon(flush)
 	return &bw
 }
 
@@ -218,8 +241,7 @@ func (nopReopenWriteCloser) Close() error {
 }
 
 // NopWriter turns a normal writer into a ReopenWriter
-//  by doing a NOP on Reopen
-// TODO: better name
+//  by doing a NOP on Reopen.   See https://en.wikipedia.org/wiki/NOP
 func NopWriter(w io.Writer) WriteCloser {
 	return nopReopenWriteCloser{w}
 }
