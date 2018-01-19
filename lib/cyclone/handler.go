@@ -11,12 +11,12 @@ package cyclone // import "github.com/mjolnir42/cyclone/lib/cyclone"
 import (
 	"fmt"
 
+	"github.com/go-redis/redis"
 	"github.com/mjolnir42/cyclone/lib/cyclone/cpu"
 	"github.com/mjolnir42/cyclone/lib/cyclone/disk"
 	"github.com/mjolnir42/cyclone/lib/cyclone/mem"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
-	"gopkg.in/redis.v3"
 )
 
 // Implementation of the erebos.Handler interface
@@ -37,7 +37,7 @@ func (c *Cyclone) Start() {
 	c.redis = redis.NewClient(&redis.Options{
 		Addr:     c.Config.Redis.Connect,
 		Password: c.Config.Redis.Password,
-		DB:       c.Config.Redis.DB,
+		DB:       int(c.Config.Redis.DB),
 	})
 	if _, err := c.redis.Ping().Result(); err != nil {
 		c.Death <- err
