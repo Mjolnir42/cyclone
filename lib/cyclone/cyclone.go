@@ -21,13 +21,13 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/go-redis/redis"
 	"github.com/mjolnir42/cyclone/lib/cyclone/cpu"
 	"github.com/mjolnir42/cyclone/lib/cyclone/disk"
 	"github.com/mjolnir42/cyclone/lib/cyclone/mem"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
-	"gopkg.in/redis.v3"
 )
 
 // Handlers is the registry of running application handlers

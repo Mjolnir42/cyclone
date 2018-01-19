@@ -61,7 +61,7 @@ func (c *Cyclone) Lookup(lookup string) map[string]Thresh {
 // local cache
 func (c *Cyclone) getThreshold(lookup string) map[string]Thresh {
 	res := make(map[string]Thresh)
-	mapdata, err := c.redis.HGetAllMap(lookup).Result()
+	mapdata, err := c.redis.HGetAll(lookup).Result()
 	if err != nil {
 		logrus.Errorf("Cyclone[%d], ERROR reading from redis for %s: %s", c.Num, lookup, err)
 		return nil
