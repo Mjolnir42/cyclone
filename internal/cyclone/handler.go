@@ -45,7 +45,7 @@ func (c *Cyclone) Start() {
 	c.trackID = make(map[string]int)
 	c.trackACK = make(map[string]*erebos.Transport)
 
-	c.delay = delay.NewDelay()
+	c.delay = delay.New()
 	c.discard = make(map[string]bool)
 	for _, path := range c.Config.Cyclone.DiscardMetrics {
 		c.discard[path] = true
