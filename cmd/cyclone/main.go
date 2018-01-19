@@ -24,6 +24,7 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/mjolnir42/cyclone/lib/cyclone"
+	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/legacy"
 	"github.com/rcrowley/go-metrics"
@@ -49,48 +50,51 @@ func main() {
 		logFH       *reopen.FileWriter
 		versionFlag bool
 	)
-	flag.StringVar(&configFlag, `config`, `cyclone.conf`, `Configuration file location`)
-	flag.BoolVar(&versionFlag, `version`, false, `Print version information`)
+	flag.StringVar(&configFlag, `config`, `cyclone.conf`,
+		`Configuration file location`)
+	flag.BoolVar(&versionFlag, `version`, false,
+		`Print version information`)
 	flag.Parse()
 
 	// only provide version information if --version was specified
 	if versionFlag {
 		fmt.Fprintln(os.Stderr, `Cyclone Metric Monitoring System`)
-		fmt.Fprintf(os.Stderr, "Version  : %s-%s\n", builddate, shorthash)
+		fmt.Fprintf(os.Stderr, "Version  : %s-%s\n", builddate,
+			shorthash)
 		fmt.Fprintf(os.Stderr, "Git Hash : %s\n", githash)
 		fmt.Fprintf(os.Stderr, "Timestamp: %s\n", buildtime)
 		os.Exit(0)
 	}
 
 	// read runtime configuration
-	cyConf := erebos.Config{}
-	if err = cyConf.FromFile(configFlag); err != nil {
+	conf := erebos.Config{}
+	if err = conf.FromFile(configFlag); err != nil {
 		logrus.Fatalf("Could not open configuration: %s", err)
 	}
 
 	// setup logfile
 	if logFH, err = reopen.NewFileWriter(
-		filepath.Join(cyConf.Log.Path, cyConf.Log.File),
+		filepath.Join(conf.Log.Path, conf.Log.File),
 	); err != nil {
 		logrus.Fatalf("Unable to open logfile: %s", err)
 	} else {
-		cyConf.Log.FH = logFH
+		conf.Log.FH = logFH
 	}
-	logrus.SetOutput(cyConf.Log.FH)
+	logrus.SetOutput(conf.Log.FH)
 	logrus.Infoln(`Starting CYCLONE...`)
 
 	// switch to requested loglevel
-	if cyConf.Log.Debug {
+	if conf.Log.Debug {
 		logrus.SetLevel(logrus.DebugLevel)
 	} else {
 		logrus.SetLevel(logrus.WarnLevel)
 	}
 
 	// signal handler will reopen logfile on USR2 if requested
-	if cyConf.Log.Rotate {
+	if conf.Log.Rotate {
 		sigChanLogRotate := make(chan os.Signal, 1)
 		signal.Notify(sigChanLogRotate, syscall.SIGUSR2)
-		go erebos.Logrotate(sigChanLogRotate, cyConf)
+		go erebos.Logrotate(sigChanLogRotate, conf)
 	}
 
 	// setup signal receiver for graceful shutdown
@@ -104,51 +108,76 @@ func main() {
 	// this channel will be closed by the consumer
 	consumerExit := make(chan struct{})
 
+	// setup goroutine waiting policy
+	waitdelay := delay.NewDelay()
+
 	// setup metrics
 	var metricPrefix string
-	switch cyConf.Misc.InstanceName {
+	switch conf.Misc.InstanceName {
 	case ``:
 		metricPrefix = `/cyclone`
 	default:
-		metricPrefix = fmt.Sprintf("/cyclone/%s", cyConf.Misc.InstanceName)
+		metricPrefix = fmt.Sprintf("/cyclone/%s",
+			conf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
-	metrics.NewRegisteredMeter(`/metrics/consumed`, pfxRegistry)
-	metrics.NewRegisteredMeter(`/metrics/processed`, pfxRegistry)
-	metrics.NewRegisteredMeter(`/evaluations`, pfxRegistry)
-	metrics.NewRegisteredMeter(`/alarms`, pfxRegistry)
+	metrics.NewRegisteredMeter(`/metrics/consumed.per.second`,
+		pfxRegistry)
+	metrics.NewRegisteredMeter(`/metrics/processed.per.second`,
+		pfxRegistry)
+	metrics.NewRegisteredMeter(`/evaluations.per.second`,
+		pfxRegistry)
+	metrics.NewRegisteredMeter(`/alarms.per.second`,
+		pfxRegistry)
 
 	// start metric socket
-	ms := legacy.NewMetricSocket(&cyConf, &pfxRegistry, handlerDeath, cyclone.FormatMetrics)
-	if cyConf.Misc.ProduceMetrics {
+	ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath,
+		cyclone.FormatMetrics)
+	if conf.Misc.ProduceMetrics {
 		logrus.Info(`Launched metrics producer socket`)
-		go ms.Run()
+		waitdelay.Use()
+		go func() {
+			defer waitdelay.Done()
+			ms.Run()
+		}()
 	}
 
-	cyclone.AgeCutOff = time.Duration(cyConf.Cyclone.MetricsMaxAge) * time.Minute * -1
+	cyclone.AgeCutOff = time.Duration(
+		conf.Cyclone.MetricsMaxAge,
+	) * time.Minute * -1
 
+	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
 		h := cyclone.Cyclone{
-			Num:      i,
-			Input:    make(chan *erebos.Transport, cyConf.Cyclone.HandlerQueueLength),
+			Num: i,
+			Input: make(chan *erebos.Transport,
+				conf.Cyclone.HandlerQueueLength),
 			Shutdown: make(chan struct{}),
 			Death:    handlerDeath,
-			Config:   &cyConf,
+			Config:   &conf,
 			Metrics:  &pfxRegistry,
 		}
 		cyclone.Handlers[i] = &h
-		go h.Start()
+		waitdelay.Use()
+		go func() {
+			defer waitdelay.Done()
+			h.Start()
+		}()
 		logrus.Infof("Launched Cyclone handler #%d", i)
 	}
 
 	// start kafka consumer
-	go erebos.Consumer(
-		&cyConf,
-		wrappedDispatch(&pfxRegistry, cyclone.Dispatch),
-		consumerShutdown,
-		consumerExit,
-		handlerDeath,
-	)
+	waitdelay.Use()
+	go func() {
+		defer waitdelay.Done()
+		erebos.Consumer(
+			&conf,
+			wrappedDispatch(&pfxRegistry, cyclone.Dispatch),
+			consumerShutdown,
+			consumerExit,
+			handlerDeath,
+		)
+	}()
 
 	heartbeat := time.Tick(5 * time.Second)
 	beatcount := 0
@@ -168,9 +197,10 @@ runloop:
 			fault = true
 			break runloop
 		case <-heartbeat:
-			// 32bit time_t held 68years at one tick per second. This should
-			// hold 2^32 * 5 * 68 years till overflow
-			cyclone.Handlers[beatcount%runtime.NumCPU()].InputChannel() <- newHeartbeat()
+			// 32bit time_t held 68years at one tick per second. This
+			// should hold 2^32 * 5 * 68 years till overflow
+			cyclone.Handlers[beatcount%runtime.NumCPU()].
+				InputChannel() <- newHeartbeat()
 			beatcount++
 		}
 	}
@@ -178,7 +208,9 @@ runloop:
 	// close all handlers
 	close(ms.Shutdown)
 	close(consumerShutdown)
-	<-consumerExit // not safe to close InputChannel before consumer is gone
+
+	// not safe to close InputChannel before consumer is gone
+	<-consumerExit
 	for i := range cyclone.Handlers {
 		close(cyclone.Handlers[i].ShutdownChannel())
 		close(cyclone.Handlers[i].InputChannel())
@@ -199,7 +231,7 @@ drainloop:
 
 	// give goroutines that were blocked on handlerDeath channel
 	// a chance to exit
-	<-time.After(time.Millisecond * 10)
+	waitdelay.Wait()
 	logrus.Infoln(`CYCLONE shutdown complete`)
 	if fault {
 		os.Exit(1)
