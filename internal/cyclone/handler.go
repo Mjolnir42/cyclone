@@ -12,10 +12,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/eyewall"
-	resty "gopkg.in/resty.v0"
 )
 
 // Implementation of the erebos.Handler interface
