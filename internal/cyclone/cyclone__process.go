@@ -104,7 +104,10 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 
 	// start metric evaluation
 	var evaluations int64
-	trackingID := uuid.NewV4().String()
+
+	// panic on entropy generation errors is reasonable.
+	trackingID := uuid.Must(uuid.NewV4()).String()
+
 	evals := metrics.GetOrRegisterMeter(
 		`/evaluations.per.second`,
 		*c.Metrics,
