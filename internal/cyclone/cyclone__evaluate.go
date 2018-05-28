@@ -13,14 +13,14 @@ import (
 	"fmt"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/mjolnir42/eyewall"
+	wall "github.com/mjolnir42/eye/lib/eye.wall"
 	"github.com/mjolnir42/legacy"
 )
 
 // evaluate tests m.Value against threshold t. It returns the resulting
 // alarmlevel and metric value as string as well as the number of
 // evalutations that had to be perfomed.
-func (c *Cyclone) evaluate(m *legacy.MetricSplit, t eyewall.Threshold) (string, string, int64) {
+func (c *Cyclone) evaluate(m *legacy.MetricSplit, t wall.Threshold) (string, string, int64) {
 	logrus.Debugf(
 		"[%d]: evaluating metric %s from %d"+
 			" against config %s",

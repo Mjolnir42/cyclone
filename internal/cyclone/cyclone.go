@@ -16,7 +16,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/eyewall"
+	wall "github.com/mjolnir42/eye/lib/eye.wall"
 	"github.com/mjolnir42/limit"
 	metrics "github.com/rcrowley/go-metrics"
 )
@@ -43,7 +43,7 @@ type Cyclone struct {
 	Limit    *limit.Limit
 	// unexported
 	delay    *delay.Delay
-	lookup   *eyewall.Lookup
+	lookup   *wall.Lookup
 	client   *resty.Client
 	discard  map[string]bool
 	result   chan *alarmResult
