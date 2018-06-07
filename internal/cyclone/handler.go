@@ -15,7 +15,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/eyewall"
+	wall "github.com/mjolnir42/eye/lib/eye.wall"
 )
 
 // Implementation of the erebos.Handler interface
@@ -50,7 +50,12 @@ func (c *Cyclone) Start() {
 	for _, path := range c.Config.Cyclone.DiscardMetrics {
 		c.discard[path] = true
 	}
-	c.lookup = eyewall.NewLookup(c.Config)
+	c.lookup = wall.NewLookup(c.Config, `cyclone`)
+	if err := c.lookup.Start(); err != nil {
+		c.Death <- err
+		<-c.Shutdown
+		return
+	}
 	defer c.lookup.Close()
 
 	c.result = make(chan *alarmResult,

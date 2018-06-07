@@ -18,7 +18,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/eyewall"
+	wall "github.com/mjolnir42/eye/lib/eye.wall"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
 	uuid "github.com/satori/go.uuid"
@@ -84,7 +84,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 
 	// fetch configuration profile information
 	thr, err := c.lookup.LookupThreshold(m.LookupID())
-	if err == eyewall.ErrUnconfigured {
+	if err == wall.ErrUnconfigured {
 		logrus.Debugf(
 			"Cyclone[%d], No thresholds configured for %s from %d",
 			c.Num, m.Path, m.AssetID,
