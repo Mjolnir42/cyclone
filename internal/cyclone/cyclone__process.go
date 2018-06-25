@@ -52,6 +52,9 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		return nil
 	}
 
+	// increment the counter of received metrics (proof of work)
+	c.lookup.UpdateReceived()
+
 	// unmarshal metric
 	m := &legacy.MetricSplit{}
 	if err := json.Unmarshal(msg.Value, m); err != nil {
