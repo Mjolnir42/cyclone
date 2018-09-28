@@ -143,6 +143,17 @@ thrloop:
 			continue thrloop
 		}
 
+		// this metric matches a threshold definition, mark it as active
+		err = c.lookup.Activate(thr[key].ID)
+		if err != nil {
+			logrus.Errorf(
+				"Cyclone[%d], ERROR activating profile %s: %s",
+				c.Num,
+				thr[key].ID,
+				err.Error(),
+			)
+		}
+
 		// perform threshold evaluation
 		alarmLevel, value, ev := c.evaluate(m, thr[key])
 		switch ev {
