@@ -6,7 +6,7 @@
  * that can be found in the LICENSE file.
  */
 
-package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
+package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	wall "github.com/mjolnir42/eye/lib/eye.wall"
+	wall "github.com/solnx/eye/lib/eye.wall"
 )
 
 // Implementation of the erebos.Handler interface

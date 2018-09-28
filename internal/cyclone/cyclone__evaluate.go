@@ -7,14 +7,14 @@
  * that can be found in the LICENSE file.
  */
 
-package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
+package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 
 import (
 	"fmt"
 
 	"github.com/Sirupsen/logrus"
-	wall "github.com/mjolnir42/eye/lib/eye.wall"
 	"github.com/mjolnir42/legacy"
+	wall "github.com/solnx/eye/lib/eye.wall"
 )
 
 // evaluate tests m.Value against threshold t. It returns the resulting

@@ -7,7 +7,7 @@
  * that can be found in the LICENSE file.
  */
 
-package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
+package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 
 import (
 	"encoding/json"
@@ -18,10 +18,10 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/erebos"
-	wall "github.com/mjolnir42/eye/lib/eye.wall"
 	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
 	uuid "github.com/satori/go.uuid"
+	wall "github.com/solnx/eye/lib/eye.wall"
 )
 
 // process evaluates a metric and raises alarms as required

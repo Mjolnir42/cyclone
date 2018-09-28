@@ -7,7 +7,7 @@
  * that can be found in the LICENSE file.
  */
 
-package cyclone // import "github.com/mjolnir42/cyclone/internal/cyclone"
+package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 
 import (
 	"bytes"
