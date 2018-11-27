@@ -18,10 +18,10 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
 	uuid "github.com/satori/go.uuid"
 	wall "github.com/solnx/eye/lib/eye.wall"
+	"github.com/solnx/legacy"
 )
 
 // process evaluates a metric and raises alarms as required

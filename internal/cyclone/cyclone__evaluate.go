@@ -13,8 +13,8 @@ import (
 	"fmt"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/mjolnir42/legacy"
 	wall "github.com/solnx/eye/lib/eye.wall"
+	"github.com/solnx/legacy"
 )
 
 // evaluate tests m.Value against threshold t. It returns the resulting

@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
+	"github.com/solnx/legacy"
 )
 
 // Dispatch implements erebos.Dispatcher

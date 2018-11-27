@@ -23,12 +23,12 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
-	"github.com/solnx/cyclone/internal/cyclone"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
 	"github.com/mjolnir42/limit"
 	"github.com/rcrowley/go-metrics"
+	"github.com/solnx/cyclone/internal/cyclone"
+	"github.com/solnx/legacy"
 )
 
 var githash, shorthash, builddate, buildtime string

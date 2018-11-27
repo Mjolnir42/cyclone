@@ -11,8 +11,8 @@ package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 import (
 	"fmt"
 
-	"github.com/mjolnir42/legacy"
 	metrics "github.com/rcrowley/go-metrics"
+	"github.com/solnx/legacy"
 )
 
 // FormatMetrics is the formatting function to export Cyclone metrics

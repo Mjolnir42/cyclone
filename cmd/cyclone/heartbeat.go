@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 
 	"github.com/mjolnir42/erebos"
-	"github.com/mjolnir42/legacy"
+	"github.com/solnx/legacy"
 )
 
 // newHeartbeat returns a heartbeat message wrapped for processing by a
