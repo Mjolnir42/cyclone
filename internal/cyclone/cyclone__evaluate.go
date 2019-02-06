@@ -13,18 +13,18 @@ import (
 	"fmt"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/d3luxee/schema"
 	wall "github.com/solnx/eye/lib/eye.wall"
-	"github.com/solnx/legacy"
 )
 
 // evaluate tests m.Value against threshold t. It returns the resulting
 // alarmlevel and metric value as string as well as the number of
 // evalutations that had to be perfomed.
-func (c *Cyclone) evaluate(m *legacy.MetricSplit, t wall.Threshold) (string, string, int64) {
+func (c *Cyclone) evaluate(m *schema.MetricData, t wall.Threshold) (string, string, int64) {
 	logrus.Debugf(
 		"[%d]: evaluating metric %s from %d"+
 			" against config %s",
-		c.Num, m.Path, m.AssetID, t.ID,
+		c.Num, m.MetricName(), m.Hostname(), t.ID,
 	)
 	var broken bool
 	var evaluations int64
@@ -44,49 +44,16 @@ lvlloop:
 			"[%d]: checking %s alarmlevel %s",
 			c.Num, t.ID, lvl,
 		)
-		switch m.Type {
-		case `integer`:
-			fallthrough
-		case `long`:
-			broken, value = c.cmpInt(t.Predicate,
-				m.Value().(int64),
-				thrval)
-		case `real`:
-			broken, value = c.cmpFlp(t.Predicate,
-				m.Value().(float64),
-				thrval)
-		default:
-			continue lvlloop
-		}
+
+		broken, value = c.cmpFlp(t.Predicate,
+			m.Value,
+			thrval)
+
 		if broken {
 			return lvl, value, evaluations
 		}
 	}
 	return `0`, value, evaluations
-}
-
-// cmpInt compares an integer value against a threshold
-func (c *Cyclone) cmpInt(pred string, value, threshold int64) (bool, string) {
-	fVal := fmt.Sprintf("%d", value)
-	switch pred {
-	case `<`:
-		return value < threshold, fVal
-	case `<=`:
-		return value <= threshold, fVal
-	case `==`:
-		return value == threshold, fVal
-	case `>=`:
-		return value >= threshold, fVal
-	case `>`:
-		return value > threshold, fVal
-	case `!=`:
-		return value != threshold, fVal
-	default:
-		logrus.Errorf(
-			"Cyclone[%d], ERROR unknown predicate: %s",
-			c.Num, pred)
-		return false, ``
-	}
 }
 
 // cmpFlp compares a floating point value against a threshold

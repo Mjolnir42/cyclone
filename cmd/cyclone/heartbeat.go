@@ -11,8 +11,8 @@ package main // import "github.com/solnx/cyclone/cmd/cyclone"
 import (
 	"encoding/json"
 
+	"github.com/d3luxee/schema"
 	"github.com/mjolnir42/erebos"
-	"github.com/solnx/legacy"
 )
 
 // newHeartbeat returns a heartbeat message wrapped for processing by a
