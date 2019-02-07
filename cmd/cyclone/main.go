@@ -23,7 +23,6 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
-	"github.com/d3luxee/schema"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/limit"
@@ -138,16 +137,17 @@ func main() {
 		pfxRegistry).Update(0)
 
 	// start metric socket
-	ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath,
-		cyclone.FormatMetrics)
-	if conf.Misc.ProduceMetrics {
-		logrus.Info(`Launched metrics producer socket`)
-		waitdelay.Use()
-		go func() {
-			defer waitdelay.Done()
-			ms.Run()
-		}()
-	}
+	// we have to produce graphite metrics instead
+	//ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath,
+	//	cyclone.FormatMetrics)
+	//if conf.Misc.ProduceMetrics {
+	//	logrus.Info(`Launched metrics producer socket`)
+	//	waitdelay.Use()
+	//	go func() {
+	//		defer waitdelay.Done()
+	//		ms.Run()
+	//	}()
+	//}
 
 	cyclone.AgeCutOff = time.Duration(
 		conf.Cyclone.MetricsMaxAge,
@@ -197,8 +197,8 @@ func main() {
 runloop:
 	for {
 		select {
-		case err := <-ms.Errors:
-			logrus.Errorf("Socket error: %s", err.Error())
+		//		case err := <-ms.Errors:
+		//			logrus.Errorf("Socket error: %s", err.Error())
 		case <-c:
 			logrus.Infoln(`Received shutdown signal`)
 			break runloop
@@ -219,7 +219,7 @@ runloop:
 	}
 
 	// close all handlers
-	close(ms.Shutdown)
+	//	close(ms.Shutdown)
 	close(consumerShutdown)
 
 	// not safe to close InputChannel before consumer is gone
@@ -233,8 +233,8 @@ runloop:
 drainloop:
 	for {
 		select {
-		case err := <-ms.Errors:
-			logrus.Errorf("Socket error: %s", err.Error())
+		//		case err := <-ms.Errors:
+		//			logrus.Errorf("Socket error: %s", err.Error())
 		case err := <-handlerDeath:
 			logrus.Errorf("Handler died: %s", err.Error())
 		case <-time.After(time.Millisecond * 10):
