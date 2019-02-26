@@ -9,6 +9,7 @@
 
 package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 import (
+	"fmt"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -16,7 +17,7 @@ import (
 
 // run is the event loop for Cyclone
 func (c *Cyclone) run() {
-
+	fmt.Println("Cyclone runloop started..")
 runloop:
 	for {
 		select {
@@ -26,6 +27,7 @@ runloop:
 			goto drainloop
 		case msg := <-c.Input:
 			if msg == nil {
+				fmt.Println("msg is nil")
 				// this can happen if we read the closed Input channel
 				// before the closed Shutdown channel
 				continue runloop
@@ -33,6 +35,7 @@ runloop:
 			if err := c.process(msg); err != nil {
 				// process only fails from invalid data or if the profile
 				// lookup service is unavailable.
+				fmt.Println("Entered eyeloop")
 			eyeloop:
 				for {
 					select {

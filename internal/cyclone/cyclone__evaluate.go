@@ -21,11 +21,12 @@ import (
 // alarmlevel and metric value as string as well as the number of
 // evalutations that had to be perfomed.
 func (c *Cyclone) evaluate(m *schema.MetricData, t wall.Threshold) (string, string, int64) {
-	logrus.Debugf(
+	logrus.Infof(
 		"[%d]: evaluating metric %s from %d"+
 			" against config %s",
 		c.Num, m.MetricName(), m.Hostname(), t.ID,
 	)
+	fmt.Println("Evaluate:", m.MetricName(), m.Hostname(), t.ID)
 	var broken bool
 	var evaluations int64
 	var value string
@@ -50,9 +51,11 @@ lvlloop:
 			thrval)
 
 		if broken {
+			fmt.Println("Broken:", lvl, value, evaluations)
 			return lvl, value, evaluations
 		}
 	}
+	fmt.Println("OK:", `0`, value, evaluations)
 	return `0`, value, evaluations
 }
 

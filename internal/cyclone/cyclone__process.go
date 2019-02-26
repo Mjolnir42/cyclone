@@ -13,9 +13,11 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/mjolnir42/erebos"
 	metrics "github.com/rcrowley/go-metrics"
 	uuid "github.com/satori/go.uuid"
@@ -55,9 +57,11 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 
 	// unmarshal metric
 	m := msg.Metric
-
 	metricname := m.MetricName()
 	hostname := m.Hostname()
+	if metricname == "uptime.uptime" && strings.Contains(hostname, "patchmanagement-prod") {
+		fmt.Println("Host:", hostname, "Metric:", metricname)
+	}
 	// ignore metrics configured to discard
 	if c.discard[metricname] {
 		metrics.GetOrRegisterMeter(`/metrics/discarded.per.second`,
@@ -74,20 +78,32 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	// metric has no tags for matching with configuration profiles
 	if len(m.Tags) == 0 {
 		//lookup possible threshold ids and add them to the metric
+		if metricname == "uptime.uptime" && strings.Contains(hostname, "patchmanagement-prod") {
+			fmt.Println("Lookup Configuration ID:", m.LookupID())
+		}
 		if tags, err := c.lookup.GetConfigurationID(
 			m.LookupID(),
 		); err == nil {
+			spew.Dump(tags)
 			for k, v := range tags {
 				m.Tags = append(m.Tags, string(k)+"="+v)
 			}
 		} else {
+			if metricname == "uptime.uptime" && strings.Contains(hostname, "patchmanagement-prod") {
+				fmt.Println(err.Error())
+				fmt.Println("No configuration found")
+			}
 			c.commit(msg)
 			return nil
 		}
 	}
 
 	// fetch configuration profile information
+
 	thr, err := c.lookup.LookupThreshold(m.LookupID())
+	if metricname == "uptime.uptime" {
+		spew.Dump(thr)
+	}
 	if err == wall.ErrUnconfigured {
 		logrus.Debugf(
 			"Cyclone[%d], No thresholds configured for %s from %d",
@@ -108,7 +124,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 
 	// start metric evaluation
 	var evaluations int64
-
+	fmt.Println("Dummy1")
 	// panic on entropy generation errors is reasonable.
 	trackingID := uuid.Must(uuid.NewV4()).String()
 
@@ -132,6 +148,7 @@ thrloop:
 			if !isUUID(t) {
 				continue tagloop
 			}
+			fmt.Println(thr[key].ID, "=", t)
 			if thr[key].ID == t {
 				evalThreshold = true
 				break tagloop
@@ -147,6 +164,7 @@ thrloop:
 		// this metric matches a threshold definition, mark it as active
 		err = c.lookup.Activate(thr[key].ID)
 		if err != nil {
+			fmt.Println("Error on Activate:", err.Error())
 			logrus.Errorf(
 				"Cyclone[%d], ERROR activating profile %s: %s",
 				c.Num,
@@ -221,6 +239,7 @@ thrloop:
 		c.trackID[trackingID]++
 		c.trackACK[trackingID] = msg
 		c.delay.Use()
+		fmt.Println("Send alarm..")
 		go c.sendAlarm(al, trackingID)
 	}
 	evals.Mark(evaluations)

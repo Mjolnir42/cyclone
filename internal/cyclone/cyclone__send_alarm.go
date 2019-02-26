@@ -48,6 +48,7 @@ type alarmResult struct {
 // only be called as goroutine after c.delay.Use()
 func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 	defer c.delay.Done()
+	fmt.Println("sendAlarm")
 	b := new(bytes.Buffer)
 	aSlice := []AlarmEvent{a}
 	if err := json.NewEncoder(b).Encode(aSlice); err != nil {
@@ -63,7 +64,6 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 		}
 		return
 	}
-
 	r := c.client.SetTimeout(
 		time.Duration(c.Config.Cyclone.RequestTimeout) *
 			time.Millisecond).
@@ -71,13 +71,11 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 
 	// acquire resource limit before issuing the POST request
 	c.Limit.Start()
-
 	resp, err := r.SetBody(b).
 		Post(c.Config.Cyclone.DestinationURI)
 
 	// release resource limit
 	c.Limit.Done()
-
 	if err != nil {
 		logrus.Errorf(
 			"Cyclone[%d], ERROR sending alarm for %s: %s",
@@ -96,12 +94,14 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 		c.Num, a.EventID, a.Level, resp.StatusCode,
 	)
 	if resp.StatusCode() >= 209 {
+		fmt.Println("Statuscode:", resp.Status())
 		// read response body
 		bt := resp.Body()
 		err = fmt.Errorf(
 			"Cyclone[%d], ResponseMsg(%d): %s",
 			c.Num, resp.StatusCode(), string(bt),
 		)
+		fmt.Println(err.Error())
 		logrus.Errorln(err.Error())
 
 		// reset buffer and encode JSON again so it can be
@@ -114,12 +114,14 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 		)
 		// 4xx errors are caused on this side, abort
 		if resp.StatusCode() < 500 {
+			fmt.Println("Dummy1")
 			c.result <- &alarmResult{
 				trackingID: trackingID,
 				err:        err,
 				internal:   true,
 				alarm:      &a,
 			}
+
 			return
 		}
 		c.result <- &alarmResult{
@@ -127,6 +129,7 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 			err:        err,
 			alarm:      &a,
 		}
+		fmt.Println("Dummy2")
 		return
 	}
 
