@@ -21,7 +21,7 @@ import (
 // evalutations that had to be perfomed.
 func (c *Cyclone) evaluate(m *schema.MetricData, t wall.Threshold) (string, string, int64) {
 	c.AppLog.Debugf(
-		"Cyclone[%d]: evaluating metric %s from %d"+
+		"Cyclone[%d]: evaluating metric %s from %s"+
 			" against config %s",
 		c.Num, m.MetricName(), m.Hostname(), t.ID,
 	)
