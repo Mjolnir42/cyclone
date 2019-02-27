@@ -215,7 +215,7 @@ thrloop:
 			*c.Metrics).Mark(1)
 
 		metrics.GetOrRegisterHistogram(
-			`/alarm.delay.seconds`,
+			`.alarm.delay.seconds`,
 			*c.Metrics,
 			metrics.NewExpDecaySample(1028, 0.03),
 		).Update(
