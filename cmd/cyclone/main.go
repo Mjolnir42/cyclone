@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -24,6 +25,7 @@ import (
 
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
+	"github.com/cyberdelia/go-metrics-graphite"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/limit"
@@ -135,39 +137,35 @@ func main() {
 	var metricPrefix string
 	switch conf.Misc.InstanceName {
 	case ``:
-		metricPrefix = `/cyclone`
+		metricPrefix = `cyclone`
 	default:
-		metricPrefix = fmt.Sprintf("/cyclone/%s",
+		metricPrefix = fmt.Sprintf("cyclone.%s",
 			conf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
-	metrics.NewRegisteredMeter(`/metrics/consumed.per.second`,
+	metrics.NewRegisteredMeter(`.metrics.consumed.per.second`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`/metrics/discarded.per.second`,
+	metrics.NewRegisteredMeter(`.metrics.discarded.per.second`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`/metrics/processed.per.second`,
+	metrics.NewRegisteredMeter(`.metrics.processed.per.second`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`/evaluations.per.second`,
+	metrics.NewRegisteredMeter(`.evaluations.per.second`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`/alarms.per.second`,
+	metrics.NewRegisteredMeter(`.alarms.per.second`,
 		pfxRegistry)
-	metrics.NewRegisteredHistogram(`/alarm.delay.seconds`,
+	metrics.NewRegisteredHistogram(`.alarm.delay.seconds`,
 		pfxRegistry, metrics.NewExpDecaySample(1028, 0.03))
-	metrics.GetOrRegisterGauge(`/alarmapi.error`,
+	metrics.GetOrRegisterGauge(`.alarmapi.error`,
 		pfxRegistry).Update(0)
 
-	// start metric socket
-	// we have to produce graphite metrics instead
-	//ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath,
-	//	cyclone.FormatMetrics)
-	//if conf.Misc.ProduceMetrics {
-	//	logrus.Info(`Launched metrics producer socket`)
-	//	waitdelay.Use()
-	//	go func() {
-	//		defer waitdelay.Done()
-	//		ms.Run()
-	//	}()
-	//}
+	if conf.Misc.ProduceMetrics {
+		logger.Info(`Launched metrics producer socket`)
+		addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", conf.Graphite.Host, conf.Graphite.Port))
+		if err != nil {
+			logger.Fatalln(err)
+		}
+		go graphite.Graphite(pfxRegistry, time.Duration(conf.Graphite.FlushInterval*time.Second.Nanoseconds()), conf.Graphite.Prefix, addr)
+	}
 
 	cyclone.AgeCutOff = time.Duration(
 		conf.Cyclone.MetricsMaxAge,

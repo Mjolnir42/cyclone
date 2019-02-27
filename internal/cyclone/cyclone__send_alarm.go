@@ -136,7 +136,7 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 // resendAlarm raises the alarmapi.error metric and attempts to
 // resend a every 5 seconds
 func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
-	metrics.GetOrRegisterGauge(`/alarmapi.error`,
+	metrics.GetOrRegisterGauge(`.alarmapi.error`,
 		*c.Metrics).Update(1)
 	broken := true
 
@@ -186,7 +186,7 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 	}
 
 	// switch error metric off
-	metrics.GetOrRegisterGauge(`/alarmapi.error`,
+	metrics.GetOrRegisterGauge(`.alarmapi.error`,
 		*c.Metrics).Update(0)
 
 	// update offset directly since the result channel at this

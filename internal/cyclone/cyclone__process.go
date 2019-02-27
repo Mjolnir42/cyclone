@@ -59,7 +59,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	hostname := m.Hostname()
 	// ignore metrics configured to discard
 	if c.discard[metricname] {
-		metrics.GetOrRegisterMeter(`/metrics/discarded.per.second`,
+		metrics.GetOrRegisterMeter(`.metrics.discarded.per.second`,
 			*c.Metrics).Mark(1)
 		// mark as processed
 		c.commit(msg)
@@ -67,7 +67,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	}
 
 	// non-heartbeat metrics count towards processed metrics
-	metrics.GetOrRegisterMeter(`/metrics/processed.per.second`,
+	metrics.GetOrRegisterMeter(`.metrics.processed.per.second`,
 		*c.Metrics).Mark(1)
 
 	// metric has no tags for matching with configuration profiles
@@ -116,7 +116,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 	trackingID := uuid.Must(uuid.NewV4()).String()
 
 	evals := metrics.GetOrRegisterMeter(
-		`/evaluations.per.second`,
+		`.evaluations.per.second`,
 		*c.Metrics,
 	)
 	c.AppLog.Debugf(
@@ -211,7 +211,7 @@ thrloop:
 			// do not send out alarms in testmode
 			continue thrloop
 		}
-		metrics.GetOrRegisterMeter(`/alarms.per.second`,
+		metrics.GetOrRegisterMeter(`.alarms.per.second`,
 			*c.Metrics).Mark(1)
 
 		metrics.GetOrRegisterHistogram(

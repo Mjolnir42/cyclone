@@ -16,7 +16,7 @@ import (
 // wrappedDispatch wraps a metric update around an erebos.Dispatcher
 func wrappedDispatch(reg *metrics.Registry, h erebos.Dispatcher) erebos.Dispatcher {
 	return func(msg erebos.Transport) error {
-		metrics.GetOrRegisterMeter(`/metrics/consumed.per.second`,
+		metrics.GetOrRegisterMeter(`.metrics.consumed.per.second`,
 			*reg).Mark(1)
 		return h(msg)
 	}
