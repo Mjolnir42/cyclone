@@ -12,7 +12,6 @@ package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 import (
 	"fmt"
 
-	"github.com/Sirupsen/logrus"
 	"github.com/d3luxee/schema"
 	wall "github.com/solnx/eye/lib/eye.wall"
 )
@@ -21,12 +20,11 @@ import (
 // alarmlevel and metric value as string as well as the number of
 // evalutations that had to be perfomed.
 func (c *Cyclone) evaluate(m *schema.MetricData, t wall.Threshold) (string, string, int64) {
-	logrus.Infof(
+	c.AppLog.Debugf(
 		"[%d]: evaluating metric %s from %d"+
 			" against config %s",
 		c.Num, m.MetricName(), m.Hostname(), t.ID,
 	)
-	fmt.Println("Evaluate:", m.MetricName(), m.Hostname(), t.ID)
 	var broken bool
 	var evaluations int64
 	var value string
@@ -41,7 +39,7 @@ lvlloop:
 		}
 
 		evaluations++
-		logrus.Debugf(
+		c.AppLog.Debugf(
 			"[%d]: checking %s alarmlevel %s",
 			c.Num, t.ID, lvl,
 		)
@@ -51,11 +49,11 @@ lvlloop:
 			thrval)
 
 		if broken {
-			fmt.Println("Broken:", lvl, value, evaluations)
+			c.AppLog.Debugf("[%d]: threshold broken for %s.%s: %d %s %d", m.Hostname(), m.MetricName(), m.Value, t.Predicate, thrval)
 			return lvl, value, evaluations
 		}
 	}
-	fmt.Println("OK:", `0`, value, evaluations)
+	c.AppLog.Debugf("[%d]: no threshold broken for %s.%s", m.Hostname(), m.MetricName())
 	return `0`, value, evaluations
 }
 
@@ -77,7 +75,7 @@ func (c *Cyclone) cmpFlp(pred string, value float64, threshold int64) (bool, str
 	case `!=`:
 		return value != fthreshold, fVal
 	default:
-		logrus.Errorf(
+		c.AppLog.Errorf(
 			"Cyclone[%d], ERROR unknown predicate: %s",
 			c.Num, pred,
 		)

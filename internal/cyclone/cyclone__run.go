@@ -9,15 +9,11 @@
 
 package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 import (
-	"fmt"
 	"time"
-
-	"github.com/Sirupsen/logrus"
 )
 
 // run is the event loop for Cyclone
 func (c *Cyclone) run() {
-	fmt.Println("Cyclone runloop started..")
 runloop:
 	for {
 		select {
@@ -27,7 +23,7 @@ runloop:
 			goto drainloop
 		case msg := <-c.Input:
 			if msg == nil {
-				fmt.Println("msg is nil")
+				c.AppLog.Debugln("Message received via erebos input channel was nil")
 				// this can happen if we read the closed Input channel
 				// before the closed Shutdown channel
 				continue runloop
@@ -35,7 +31,6 @@ runloop:
 			if err := c.process(msg); err != nil {
 				// process only fails from invalid data or if the profile
 				// lookup service is unavailable.
-				fmt.Println("Entered eyeloop")
 			eyeloop:
 				for {
 					select {
@@ -93,7 +88,7 @@ drainloop:
 				break drainloop
 			}
 			if err := c.process(msg); err != nil {
-				logrus.Errorln(err.Error())
+				c.AppLog.Errorln(err.Error())
 			}
 		}
 	}
@@ -105,7 +100,7 @@ resultdrain:
 		select {
 		case res := <-c.result:
 			if res.err != nil {
-				logrus.Errorln(res.err.Error())
+				c.AppLog.Errorln(res.err.Error())
 				continue resultdrain
 			}
 			c.updateOffset(res.trackingID)

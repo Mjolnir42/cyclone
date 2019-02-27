@@ -71,7 +71,12 @@ func main() {
 	if err = conf.FromFile(configFlag); err != nil {
 		logrus.Fatalf("Could not open configuration: %s", err)
 	}
-
+	panic_log, err := os.OpenFile(filepath.Join(conf.Log.Path, `panic.log`), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)
+	redirectStderr(panic_log)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logger := logrus.New()
 	// setup logfile
 	if logFH, err = reopen.NewFileWriter(
 		filepath.Join(conf.Log.Path, conf.Log.File),
@@ -80,14 +85,14 @@ func main() {
 	} else {
 		conf.Log.FH = logFH
 	}
-	logrus.SetOutput(conf.Log.FH)
-	logrus.Infoln(`Starting CYCLONE...`)
+	logger.SetOutput(conf.Log.FH)
+	logger.Infoln(`Starting CYCLONE...`)
 
 	// switch to requested loglevel
 	if conf.Log.Debug {
-		logrus.SetLevel(logrus.DebugLevel)
+		logger.SetLevel(logrus.DebugLevel)
 	} else {
-		logrus.SetLevel(logrus.WarnLevel)
+		logger.SetLevel(logrus.WarnLevel)
 	}
 
 	// signal handler will reopen logfile on USR2 if requested
@@ -167,6 +172,7 @@ func main() {
 			Config:   &conf,
 			Metrics:  &pfxRegistry,
 			Limit:    lim,
+			AppLog:   logger,
 		}
 		cyclone.Handlers[i] = &h
 		waitdelay.Use()
@@ -174,7 +180,7 @@ func main() {
 			defer waitdelay.Done()
 			h.Start()
 		}()
-		logrus.Infof("Launched Cyclone handler #%d", i)
+		logger.Infof("Launched Cyclone handler #%d", i)
 	}
 
 	// start kafka consumer
@@ -200,10 +206,10 @@ runloop:
 		//		case err := <-ms.Errors:
 		//			logrus.Errorf("Socket error: %s", err.Error())
 		case <-c:
-			logrus.Infoln(`Received shutdown signal`)
+			logger.Infoln(`Received shutdown signal`)
 			break runloop
 		case err := <-handlerDeath:
-			logrus.Errorf("Handler died: %s", err.Error())
+			logger.Errorf("Handler died: %s", err.Error())
 			fault = true
 			break runloop
 		case <-heartbeat:
@@ -236,7 +242,7 @@ drainloop:
 		//		case err := <-ms.Errors:
 		//			logrus.Errorf("Socket error: %s", err.Error())
 		case err := <-handlerDeath:
-			logrus.Errorf("Handler died: %s", err.Error())
+			logger.Errorf("Handler died: %s", err.Error())
 		case <-time.After(time.Millisecond * 10):
 			break drainloop
 		}
@@ -245,9 +251,18 @@ drainloop:
 	// give goroutines that were blocked on handlerDeath channel
 	// a chance to exit
 	waitdelay.Wait()
-	logrus.Infoln(`CYCLONE shutdown complete`)
+	logger.Infoln(`CYCLONE shutdown complete`)
 	if fault {
 		os.Exit(1)
+	}
+}
+
+// redirectStderr to the file passed in
+// this will allow us to log panics
+func redirectStderr(f *os.File) {
+	err := syscall.Dup2(int(f.Fd()), int(os.Stderr.Fd()))
+	if err != nil {
+		log.Fatalf("Failed to redirect stderr to file: %v", err)
 	}
 }
 

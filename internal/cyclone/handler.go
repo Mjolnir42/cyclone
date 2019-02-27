@@ -22,7 +22,6 @@ import (
 
 //Start sets up the Cyclone application
 func (c *Cyclone) Start() {
-	fmt.Println("Starting new handler..")
 	if len(Handlers) == 0 {
 		c.Death <- fmt.Errorf(`Incorrectly set handlers`)
 		<-c.Shutdown
@@ -52,18 +51,15 @@ func (c *Cyclone) Start() {
 		c.discard[path] = true
 	}
 	c.lookup = wall.NewLookup(c.Config, `cyclone`)
-	fmt.Println("Pre lookup start")
 	if err := c.lookup.Start(); err != nil {
 		c.Death <- err
 		<-c.Shutdown
 		return
 	}
-	fmt.Println("Post lookup start")
 	defer c.lookup.Close()
 	c.result = make(chan *alarmResult,
 		c.Config.Cyclone.HandlerQueueLength,
 	)
-	fmt.Println("call cyclone.run for handler")
 	c.run()
 }
 

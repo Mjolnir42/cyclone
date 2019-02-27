@@ -41,6 +41,7 @@ type Cyclone struct {
 	Config   *erebos.Config
 	Metrics  *metrics.Registry
 	Limit    *limit.Limit
+	AppLog   *logrus.Logger
 	// unexported
 	delay    *delay.Delay
 	lookup   *wall.Lookup
@@ -55,7 +56,7 @@ type Cyclone struct {
 // outstanding messages for trackingID have been processed
 func (c *Cyclone) updateOffset(trackingID string) {
 	if _, ok := c.trackID[trackingID]; !ok {
-		logrus.Warnf("Unknown trackingID: %s", trackingID)
+		c.AppLog.Warnf("Unknown trackingID: %s", trackingID)
 		return
 	}
 	// decrement outstanding successes for trackingID
