@@ -18,6 +18,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -89,10 +90,24 @@ func main() {
 	logger.Infoln(`Starting CYCLONE...`)
 
 	// switch to requested loglevel
-	if conf.Log.Debug {
+	// trace, debug, info, warning, error, fatal, panic
+	switch strings.ToLower(conf.Log.LogLevel) {
+	case `trace`:
+		logger.SetLevel(logrus.TraceLevel)
+	case `debug`:
 		logger.SetLevel(logrus.DebugLevel)
-	} else {
+	case `info`:
+		logger.SetLevel(logrus.InfoLevel)
+	case `warning`:
 		logger.SetLevel(logrus.WarnLevel)
+	case `error`:
+		logger.SetLevel(logrus.ErrorLevel)
+	case `fatal`:
+		logger.SetLevel(logrus.FatalLevel)
+	case `panic`:
+		logger.SetLevel(logrus.PanicLevel)
+	default:
+		logger.SetLevel(logrus.InfoLevel)
 	}
 
 	// signal handler will reopen logfile on USR2 if requested
