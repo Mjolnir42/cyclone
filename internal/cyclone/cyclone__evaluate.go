@@ -21,7 +21,7 @@ import (
 // evalutations that had to be perfomed.
 func (c *Cyclone) evaluate(m *schema.MetricData, t wall.Threshold) (string, string, int64) {
 	c.AppLog.Debugf(
-		"[%d]: evaluating metric %s from %d"+
+		"Cyclone[%d]: evaluating metric %s from %d"+
 			" against config %s",
 		c.Num, m.MetricName(), m.Hostname(), t.ID,
 	)
@@ -40,7 +40,7 @@ lvlloop:
 
 		evaluations++
 		c.AppLog.Debugf(
-			"[%d]: checking %s alarmlevel %s",
+			"Cyclone[%d]: checking %s alarmlevel %s",
 			c.Num, t.ID, lvl,
 		)
 
@@ -49,11 +49,11 @@ lvlloop:
 			thrval)
 
 		if broken {
-			c.AppLog.Debugf("[%d]: threshold broken for %s.%s: %d %s %d", m.Hostname(), m.MetricName(), m.Value, t.Predicate, thrval)
+			c.AppLog.Debugf("Cyclone[%d]: threshold broken for %s.%s: %.2f %s %d", c.Num, m.Hostname(), m.MetricName(), m.Value, t.Predicate, thrval)
 			return lvl, value, evaluations
 		}
 	}
-	c.AppLog.Debugf("[%d]: no threshold broken for %s.%s", m.Hostname(), m.MetricName())
+	c.AppLog.Debugf("Cyclone[%d]: no threshold broken for %s.%s", c.Num, m.Hostname(), m.MetricName())
 	return `0`, value, evaluations
 }
 

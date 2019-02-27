@@ -80,7 +80,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 				m.Tags = append(m.Tags, string(k)+"="+v)
 			}
 		} else {
-			c.AppLog.Debugf(
+			c.AppLog.Tracef(
 				"Cyclone[%d], No configuration id's found for %s.%s",
 				c.Num, hostname, metricname,
 			)
@@ -120,7 +120,7 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		*c.Metrics,
 	)
 	c.AppLog.Debugf(
-		"Cyclone[%d], Forwarding %s from %d for evaluation (%s)",
+		"Cyclone[%d], Forwarding %s from %s for evaluation (%s)",
 		c.Num, metricname, hostname, m.LookupID(),
 	)
 
@@ -135,7 +135,6 @@ thrloop:
 			if !isUUID(t) {
 				continue tagloop
 			}
-			c.AppLog.Debugln(thr[key].ID, "=", t)
 			if thr[key].ID == t {
 				evalThreshold = true
 				break tagloop

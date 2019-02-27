@@ -87,8 +87,7 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 		return
 	}
 	c.AppLog.Infof(
-		"Cyclone[%d], Dispatched alarm for %s at level %d,"+
-			" returncode was %d",
+		"Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
 		c.Num, a.EventID, a.Level, resp.StatusCode,
 	)
 	if resp.StatusCode() >= 209 {
