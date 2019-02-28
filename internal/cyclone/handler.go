@@ -51,6 +51,7 @@ func (c *Cyclone) Start() {
 		c.discard[path] = true
 	}
 	c.lookup = wall.NewLookup(c.Config, `cyclone`)
+	c.lookup.SetLogger(c.AppLog)
 	if err := c.lookup.Start(); err != nil {
 		c.Death <- err
 		<-c.Shutdown
