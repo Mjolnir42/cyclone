@@ -15,7 +15,6 @@ import (
 	"github.com/Sirupsen/logrus"
 	"github.com/d3luxee/schema"
 	"github.com/mjolnir42/erebos"
-	schema2 "github.com/raintank/schema"
 	m2msg "github.com/raintank/schema/msg"
 )
 
@@ -32,7 +31,7 @@ func Dispatch(msg erebos.Transport) error {
 		}
 		return nil
 	}
-	msg.Metric = schema.MetricData{&schema2.MetricData{}}
+	msg.Metric = schema.MetricData{}
 	_, err := msg.Metric.UnmarshalMsg(msg.Value)
 	if err != nil {
 		logrus.Errorf("Invalid data: %s", err.Error())
