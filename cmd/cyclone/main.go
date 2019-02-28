@@ -23,6 +23,8 @@ import (
 	"syscall"
 	"time"
 
+	"runtime/pprof"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
 	"github.com/cyberdelia/go-metrics-graphite"
@@ -46,6 +48,9 @@ func init() {
 	log.SetOutput(ioutil.Discard)
 }
 
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
+var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+
 func main() {
 	var (
 		err         error
@@ -58,7 +63,28 @@ func main() {
 	flag.BoolVar(&versionFlag, `version`, false,
 		`Print version information`)
 	flag.Parse()
-
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal("could not create memory profile: ", err)
+		}
+		defer f.Close()
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Fatal("could not write memory profile: ", err)
+		}
+	}
 	// only provide version information if --version was specified
 	if versionFlag {
 		fmt.Fprintln(os.Stderr, `Cyclone Metric Monitoring System`)
@@ -111,7 +137,6 @@ func main() {
 	default:
 		logger.SetLevel(logrus.InfoLevel)
 	}
-
 	// signal handler will reopen logfile on USR2 if requested
 	if conf.Log.Rotate {
 		sigChanLogRotate := make(chan os.Signal, 1)
