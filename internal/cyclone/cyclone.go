@@ -43,13 +43,14 @@ type Cyclone struct {
 	Limit    *limit.Limit
 	AppLog   *logrus.Logger
 	// unexported
-	delay    *delay.Delay
-	lookup   *wall.Lookup
-	client   *resty.Client
-	discard  map[string]bool
-	result   chan *alarmResult
-	trackID  map[string]int
-	trackACK map[string]*erebos.Transport
+	delay     *delay.Delay
+	lookup    *wall.Lookup
+	client    *resty.Client
+	discard   map[string]bool
+	whitelist map[string]bool
+	result    chan *alarmResult
+	trackID   map[string]int
+	trackACK  map[string]*erebos.Transport
 }
 
 // updateOffset updates the consumer offsets in Kafka once all

@@ -50,6 +50,14 @@ func (c *Cyclone) Start() {
 	for _, path := range c.Config.Cyclone.DiscardMetrics {
 		c.discard[path] = true
 	}
+	c.whitelist = make(map[string]bool)
+	if len(c.Config.Cyclone.PrefixWhitelist) == 0 {
+		c.whitelist["disabled"] = true
+	} else {
+		for _, path := range c.Config.Cyclone.PrefixWhitelist {
+			c.whitelist[path] = true
+		}
+	}
 	c.lookup = wall.NewLookup(c.Config, `cyclone`)
 	c.lookup.SetLogger(c.AppLog)
 	if err := c.lookup.Start(); err != nil {

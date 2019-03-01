@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/d3luxee/schema"
 	"github.com/mjolnir42/erebos"
 	metrics "github.com/rcrowley/go-metrics"
 	uuid "github.com/satori/go.uuid"
@@ -31,7 +32,6 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		}
 		return nil
 	}
-
 	// handle heartbeat messages
 	if erebos.IsHeartbeat(msg) {
 		c.delay.Use()
@@ -49,9 +49,28 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		}()
 		return nil
 	}
-
+	//Unmarshal MetricData
+	msg.Metric = schema.MetricData{}
+	_, err := msg.Metric.UnmarshalMsg(msg.Value)
+	if err != nil {
+		c.AppLog.Warnf("Invalid data: %s", err.Error())
+		return err
+	}
+	// ignore metrics that are simply too old for useful
+	// alerting
+	if time.Now().UTC().Add(AgeCutOff).After(time.Unix(msg.Metric.Time, 0).UTC()) {
+		// mark as processed
+		c.AppLog.Debugln("Ignore metric due to age")
+		c.commit(msg)
+		return nil
+	}
+	if !msg.Metric.Validate(c.whitelist) {
+		c.AppLog.Tracef("Ignore metric %s because the prefix %s is not whitelisted", msg.Metric.MetricName(), msg.Metric.Prefix())
+		c.commit(msg)
+		return nil
+	}
 	// increment the counter of received metrics (proof of work)
-	c.lookup.UpdateReceived()
+	go c.lookup.UpdateReceived()
 
 	// unmarshal metric
 	m := msg.Metric
