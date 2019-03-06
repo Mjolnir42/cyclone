@@ -111,7 +111,7 @@ resultdrain:
 			break resultdrain
 		}
 	}
-
+	//	c.lookup.Close()
 	c.delay.Wait()
 }
 

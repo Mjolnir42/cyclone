@@ -15,7 +15,6 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	wall "github.com/solnx/eye/lib/eye.wall"
 )
 
 // Implementation of the erebos.Handler interface
@@ -58,14 +57,7 @@ func (c *Cyclone) Start() {
 			c.whitelist[path] = true
 		}
 	}
-	c.lookup = wall.NewLookup(c.Config, `cyclone`)
-	c.lookup.SetLogger(c.AppLog)
-	if err := c.lookup.Start(); err != nil {
-		c.Death <- err
-		<-c.Shutdown
-		return
-	}
-	defer c.lookup.Close()
+
 	c.result = make(chan *alarmResult,
 		c.Config.Cyclone.HandlerQueueLength,
 	)

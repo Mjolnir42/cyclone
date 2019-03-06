@@ -19,11 +19,12 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
 	"strings"
 	"syscall"
 	"time"
 
-	"runtime/pprof"
+	wall "github.com/solnx/eye/lib/eye.wall"
 
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
@@ -198,7 +199,12 @@ func main() {
 
 	// acquire shared concurrency limit
 	lim := limit.New(conf.Cyclone.ConcurrencyLimit)
-
+	lookup := wall.NewLookup(&conf, `cyclone`)
+	lookup.SetLogger(logger)
+	if err := lookup.Start(); err != nil {
+		logger.Fatalln(err)
+	}
+	defer lookup.Close()
 	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
 		h := cyclone.Cyclone{
@@ -212,6 +218,7 @@ func main() {
 			Limit:    lim,
 			AppLog:   logger,
 		}
+		h.SetLookup(lookup)
 		cyclone.Handlers[i] = &h
 		waitdelay.Use()
 		go func() {
