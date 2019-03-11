@@ -95,7 +95,12 @@ func (c *Cyclone) process(msg *erebos.Transport) error {
 		if tags, err := c.lookup.GetConfigurationID(
 			m.LookupID(),
 		); err == nil {
+
 			for k, v := range tags {
+				c.AppLog.Debugf(
+					"Cyclone[%d], configuration id: %s found for %s.%s",
+					c.Num, v, hostname, metricname,
+				)
 				m.Tags = append(m.Tags, string(k)+"="+v)
 			}
 		} else {
