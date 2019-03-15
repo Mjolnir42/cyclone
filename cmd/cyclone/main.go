@@ -101,8 +101,8 @@ func main() {
 	if err = conf.FromFile(configFlag); err != nil {
 		logrus.Fatalf("Could not open configuration: %s", err)
 	}
-	panic_log, err := os.OpenFile(filepath.Join(conf.Log.Path, `panic.log`), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)
-	redirectStderr(panic_log)
+	panicLog, err := os.OpenFile(filepath.Join(conf.Log.Path, `panic.log`), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)
+	redirectStderr(panicLog)
 	if err != nil {
 		logrus.Fatal(err)
 	}

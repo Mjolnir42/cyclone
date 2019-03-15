@@ -143,12 +143,24 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 	b := new(bytes.Buffer)
 	aSlice := []AlarmEvent{*a}
 	// encoding a previously did not cause an internal error
-	json.NewEncoder(b).Encode(aSlice)
+	if err := json.NewEncoder(b).Encode(aSlice); err != nil {
+		c.AppLog.Errorf(
+			"Cyclone[%d], ERROR json encoding alarm for %s: %s",
+			c.Num, a.EventID, err,
+		)
+		c.result <- &alarmResult{
+			trackingID: trackingID,
+			err:        err,
+			internal:   true,
+			alarm:      a,
+		}
+		return
+	}
 
 	// fast first request attempt
 	resendDelay := time.Millisecond * 50
 
-	for broken == true {
+	for broken {
 		select {
 		// always listen for shutdown requests
 		case <-c.Shutdown:
