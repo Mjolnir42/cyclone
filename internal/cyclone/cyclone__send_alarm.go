@@ -139,7 +139,7 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 	metrics.GetOrRegisterGauge(`.alarmapi.error`,
 		*c.Metrics).Update(1)
 	broken := true
-
+	retryCount := 0
 	b := new(bytes.Buffer)
 	aSlice := []AlarmEvent{*a}
 	// encoding a previously did not cause an internal error
@@ -161,6 +161,10 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 	resendDelay := time.Millisecond * 50
 
 	for broken {
+		if retryCount > 5 {
+			break
+		}
+		retryCount++
 		select {
 		// always listen for shutdown requests
 		case <-c.Shutdown:
@@ -203,7 +207,7 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 
 	// update offset directly since the result channel at this
 	// point likely blocks
-	c.updateOffset(trackingID)
+	//c.updateOffset(trackingID)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix

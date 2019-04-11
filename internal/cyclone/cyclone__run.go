@@ -56,7 +56,8 @@ runloop:
 								break runloop
 							}
 							// alarm sending failed from external error
-							c.resendAlarm(res.alarm, res.trackingID)
+							go c.resendAlarm(res.alarm, res.trackingID)
+							c.updateOffset(res.trackingID)
 							continue eyeloop
 						}
 						c.updateOffset(res.trackingID)
@@ -72,7 +73,8 @@ runloop:
 					break runloop
 				}
 				// alarm sending failed from external error
-				c.resendAlarm(res.alarm, res.trackingID)
+				go c.resendAlarm(res.alarm, res.trackingID)
+				c.updateOffset(res.trackingID)
 				continue runloop
 			}
 			c.updateOffset(res.trackingID)
