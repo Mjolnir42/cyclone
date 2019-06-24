@@ -63,6 +63,15 @@ misc: {
     produce.metrics: 'true'
 }
 
+# cyclone will report its own metrics to this endpoint
+# this allows cyclone to perform monitoring on itself
+graphite: {
+  host: 'my-graphite.local.lan'
+  port: 2003
+  prefix: $prefix.$hostname
+  flush.interval.seconds: 10
+}
+
 # redis settings
 redis: {
     # redis server address
