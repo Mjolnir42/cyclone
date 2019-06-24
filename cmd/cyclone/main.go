@@ -169,15 +169,15 @@ func main() {
 			conf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
-	metrics.NewRegisteredMeter(`.metrics.consumed.per.second`,
+	metrics.NewRegisteredMeter(`.metrics.consumed`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`.metrics.discarded.per.second`,
+	metrics.NewRegisteredMeter(`.metrics.discarded`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`.metrics.processed.per.second`,
+	metrics.NewRegisteredMeter(`.metrics.processed`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`.evaluations.per.second`,
+	metrics.NewRegisteredMeter(`.evaluations`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`.alarms.per.second`,
+	metrics.NewRegisteredMeter(`.alarms.sent`,
 		pfxRegistry)
 	metrics.NewRegisteredHistogram(`.alarm.delay.seconds`,
 		pfxRegistry, metrics.NewExpDecaySample(1028, 0.03))
