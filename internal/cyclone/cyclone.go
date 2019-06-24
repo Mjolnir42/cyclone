@@ -17,6 +17,7 @@ import (
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/limit"
+	"github.com/patrickmn/go-cache"
 	metrics "github.com/rcrowley/go-metrics"
 	wall "github.com/solnx/eye/lib/eye.wall"
 )
@@ -51,6 +52,8 @@ type Cyclone struct {
 	result    chan *alarmResult
 	trackID   map[string]int
 	trackACK  map[string]*erebos.Transport
+	okCache   *cache.Cache
+	errCache  *cache.Cache
 }
 
 // updateOffset updates the consumer offsets in Kafka once all

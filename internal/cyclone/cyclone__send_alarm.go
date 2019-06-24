@@ -46,6 +46,22 @@ type alarmResult struct {
 // process evaluates a metric and raises alarms as required. Must
 // only be called as goroutine after c.delay.Use()
 func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
+	//rate limit the amount of events sent to cams
+	// ok events every 3h and !=ok every 3min
+	switch a.Level {
+	case 0:
+		if _, found := ok_state.Get(ts.Service); found {
+			continue
+		}
+		c.okCache.Set(a.EventID, true, cache.DefaultExpiration)
+		c.errCache.Delete(a.EventID)
+	default:
+		if _, found := err_warn_state.Get(ts.Service); found {
+			continue
+		}
+		c.okCache.Delete(a.EventID)
+		c.errCache.Set(a.EventID, true, cache.DefaultExpiration)
+	}
 	defer c.delay.Done()
 	b := new(bytes.Buffer)
 	aSlice := []AlarmEvent{a}
