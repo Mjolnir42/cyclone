@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/patrickmn/go-cache"
 	metrics "github.com/rcrowley/go-metrics"
 )
 
@@ -50,14 +51,22 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 	// ok events every 3h and !=ok every 3min
 	switch a.Level {
 	case 0:
-		if _, found := ok_state.Get(ts.Service); found {
-			continue
+		if _, found := c.okCache.Get(a.EventID); found {
+			c.result <- &alarmResult{
+				trackingID: trackingID,
+				err:        nil,
+			}
+			return
 		}
 		c.okCache.Set(a.EventID, true, cache.DefaultExpiration)
 		c.errCache.Delete(a.EventID)
 	default:
-		if _, found := err_warn_state.Get(ts.Service); found {
-			continue
+		if _, found := c.errCache.Get(a.EventID); found {
+			c.result <- &alarmResult{
+				trackingID: trackingID,
+				err:        nil,
+			}
+			return
 		}
 		c.okCache.Delete(a.EventID)
 		c.errCache.Set(a.EventID, true, cache.DefaultExpiration)
