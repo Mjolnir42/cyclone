@@ -248,14 +248,17 @@ func main() {
 runloop:
 	for {
 		select {
-		//		case err := <-ms.Errors:
-		//			logrus.Errorf("Socket error: %s", err.Error())
 		case <-c:
 			logger.Infoln(`Received shutdown signal`)
 			break runloop
 		case err := <-handlerDeath:
 			logger.Errorf("Handler died: %s", err.Error())
 			fault = true
+			go func() {
+				time.Sleep(30 * time.Second)
+				logger.Errorln("Could not shutdown cyclone correctly!")
+				os.Exit(1)
+			}()
 			break runloop
 		case <-heartbeat:
 			for i := range cyclone.Handlers {
