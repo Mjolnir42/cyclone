@@ -254,11 +254,6 @@ runloop:
 		case err := <-handlerDeath:
 			logger.Errorf("Handler died: %s", err.Error())
 			fault = true
-			go func() {
-				time.Sleep(30 * time.Second)
-				logger.Errorln("Could not shutdown cyclone correctly!")
-				os.Exit(1)
-			}()
 			break runloop
 		case <-heartbeat:
 			for i := range cyclone.Handlers {
@@ -274,6 +269,11 @@ runloop:
 
 	// close all handlers
 	//	close(ms.Shutdown)
+	go func() {
+		time.Sleep(30 * time.Second)
+		logger.Errorln("Could not shutdown cyclone correctly!")
+		os.Exit(1)
+	}()
 	close(consumerShutdown)
 
 	// not safe to close InputChannel before consumer is gone
@@ -287,8 +287,6 @@ runloop:
 drainloop:
 	for {
 		select {
-		//		case err := <-ms.Errors:
-		//			logrus.Errorf("Socket error: %s", err.Error())
 		case err := <-handlerDeath:
 			logger.Errorf("Handler died: %s", err.Error())
 		case <-time.After(time.Millisecond * 10):
