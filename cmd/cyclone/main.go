@@ -14,21 +14,26 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"runtime/pprof"
+	"strings"
 	"syscall"
 	"time"
 
+	wall "github.com/solnx/eye/lib/eye.wall"
+
 	"github.com/Sirupsen/logrus"
 	"github.com/client9/reopen"
+	"github.com/cyberdelia/go-metrics-graphite"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/limit"
 	"github.com/rcrowley/go-metrics"
 	"github.com/solnx/cyclone/internal/cyclone"
-	"github.com/solnx/legacy"
 )
 
 var githash, shorthash, builddate, buildtime string
@@ -44,6 +49,9 @@ func init() {
 	log.SetOutput(ioutil.Discard)
 }
 
+var cpuprofile = flag.String("cpuprofile", "", "write cpu profile to `file`")
+var memprofile = flag.String("memprofile", "", "write memory profile to `file`")
+
 func main() {
 	var (
 		err         error
@@ -56,7 +64,28 @@ func main() {
 	flag.BoolVar(&versionFlag, `version`, false,
 		`Print version information`)
 	flag.Parse()
-
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		defer f.Close()
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+	}
+	if *memprofile != "" {
+		f, err := os.Create(*memprofile)
+		if err != nil {
+			log.Fatal("could not create memory profile: ", err)
+		}
+		defer f.Close()
+		runtime.GC() // get up-to-date statistics
+		if err := pprof.WriteHeapProfile(f); err != nil {
+			log.Fatal("could not write memory profile: ", err)
+		}
+	}
 	// only provide version information if --version was specified
 	if versionFlag {
 		fmt.Fprintln(os.Stderr, `Cyclone Metric Monitoring System`)
@@ -72,7 +101,12 @@ func main() {
 	if err = conf.FromFile(configFlag); err != nil {
 		logrus.Fatalf("Could not open configuration: %s", err)
 	}
-
+	panicLog, err := os.OpenFile(filepath.Join(conf.Log.Path, `panic.log`), os.O_CREATE|os.O_RDWR|os.O_APPEND, 0660)
+	redirectStderr(panicLog)
+	if err != nil {
+		logrus.Fatal(err)
+	}
+	logger := logrus.New()
 	// setup logfile
 	if logFH, err = reopen.NewFileWriter(
 		filepath.Join(conf.Log.Path, conf.Log.File),
@@ -81,16 +115,29 @@ func main() {
 	} else {
 		conf.Log.FH = logFH
 	}
-	logrus.SetOutput(conf.Log.FH)
-	logrus.Infoln(`Starting CYCLONE...`)
+	logger.SetOutput(conf.Log.FH)
+	logger.Infoln(`Starting CYCLONE...`)
 
 	// switch to requested loglevel
-	if conf.Log.Debug {
-		logrus.SetLevel(logrus.DebugLevel)
-	} else {
-		logrus.SetLevel(logrus.WarnLevel)
+	// trace, debug, info, warning, error, fatal, panic
+	switch strings.ToLower(conf.Log.LogLevel) {
+	case `trace`:
+		logger.SetLevel(logrus.TraceLevel)
+	case `debug`:
+		logger.SetLevel(logrus.DebugLevel)
+	case `info`:
+		logger.SetLevel(logrus.InfoLevel)
+	case `warning`:
+		logger.SetLevel(logrus.WarnLevel)
+	case `error`:
+		logger.SetLevel(logrus.ErrorLevel)
+	case `fatal`:
+		logger.SetLevel(logrus.FatalLevel)
+	case `panic`:
+		logger.SetLevel(logrus.PanicLevel)
+	default:
+		logger.SetLevel(logrus.InfoLevel)
 	}
-
 	// signal handler will reopen logfile on USR2 if requested
 	if conf.Log.Rotate {
 		sigChanLogRotate := make(chan os.Signal, 1)
@@ -116,37 +163,34 @@ func main() {
 	var metricPrefix string
 	switch conf.Misc.InstanceName {
 	case ``:
-		metricPrefix = `/cyclone`
+		metricPrefix = `cyclone`
 	default:
-		metricPrefix = fmt.Sprintf("/cyclone/%s",
+		metricPrefix = fmt.Sprintf("cyclone.%s",
 			conf.Misc.InstanceName)
 	}
 	pfxRegistry := metrics.NewPrefixedRegistry(metricPrefix)
-	metrics.NewRegisteredMeter(`/metrics/consumed.per.second`,
+	metrics.NewRegisteredMeter(`.metrics.consumed`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`/metrics/discarded.per.second`,
+	metrics.NewRegisteredMeter(`.metrics.discarded`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`/metrics/processed.per.second`,
+	metrics.NewRegisteredMeter(`.metrics.processed`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`/evaluations.per.second`,
+	metrics.NewRegisteredMeter(`.evaluations`,
 		pfxRegistry)
-	metrics.NewRegisteredMeter(`/alarms.per.second`,
+	metrics.NewRegisteredMeter(`.alarms.sent`,
 		pfxRegistry)
-	metrics.NewRegisteredHistogram(`/alarm.delay.seconds`,
+	metrics.NewRegisteredHistogram(`.alarm.delay.seconds`,
 		pfxRegistry, metrics.NewExpDecaySample(1028, 0.03))
-	metrics.GetOrRegisterGauge(`/alarmapi.error`,
+	metrics.GetOrRegisterGauge(`.alarmapi.error`,
 		pfxRegistry).Update(0)
 
-	// start metric socket
-	ms := legacy.NewMetricSocket(&conf, &pfxRegistry, handlerDeath,
-		cyclone.FormatMetrics)
 	if conf.Misc.ProduceMetrics {
-		logrus.Info(`Launched metrics producer socket`)
-		waitdelay.Use()
-		go func() {
-			defer waitdelay.Done()
-			ms.Run()
-		}()
+		logger.Info(`Launched metrics producer socket`)
+		addr, err := net.ResolveTCPAddr("tcp", fmt.Sprintf("%s:%s", conf.Graphite.Host, conf.Graphite.Port))
+		if err != nil {
+			logger.Fatalln(err)
+		}
+		go graphite.Graphite(pfxRegistry, time.Duration(conf.Graphite.FlushInterval*time.Second.Nanoseconds()), conf.Graphite.Prefix, addr)
 	}
 
 	cyclone.AgeCutOff = time.Duration(
@@ -155,7 +199,12 @@ func main() {
 
 	// acquire shared concurrency limit
 	lim := limit.New(conf.Cyclone.ConcurrencyLimit)
-
+	lookup := wall.NewLookup(&conf, `cyclone`)
+	lookup.SetLogger(logger)
+	if err := lookup.Start(); err != nil {
+		logger.Fatalln(err)
+	}
+	defer lookup.Close()
 	// start application handlers
 	for i := 0; i < runtime.NumCPU(); i++ {
 		h := cyclone.Cyclone{
@@ -167,14 +216,16 @@ func main() {
 			Config:   &conf,
 			Metrics:  &pfxRegistry,
 			Limit:    lim,
+			AppLog:   logger,
 		}
+		h.SetLookup(lookup)
 		cyclone.Handlers[i] = &h
 		waitdelay.Use()
 		go func() {
 			defer waitdelay.Done()
 			h.Start()
 		}()
-		logrus.Infof("Launched Cyclone handler #%d", i)
+		logger.Infof("Launched Cyclone handler #%d", i)
 	}
 
 	// start kafka consumer
@@ -197,13 +248,11 @@ func main() {
 runloop:
 	for {
 		select {
-		case err := <-ms.Errors:
-			logrus.Errorf("Socket error: %s", err.Error())
 		case <-c:
-			logrus.Infoln(`Received shutdown signal`)
+			logger.Infoln(`Received shutdown signal`)
 			break runloop
 		case err := <-handlerDeath:
-			logrus.Errorf("Handler died: %s", err.Error())
+			logger.Errorf("Handler died: %s", err.Error())
 			fault = true
 			break runloop
 		case <-heartbeat:
@@ -219,7 +268,12 @@ runloop:
 	}
 
 	// close all handlers
-	close(ms.Shutdown)
+	//	close(ms.Shutdown)
+	go func() {
+		time.Sleep(30 * time.Second)
+		logger.Errorln("Could not shutdown cyclone correctly!")
+		os.Exit(1)
+	}()
 	close(consumerShutdown)
 
 	// not safe to close InputChannel before consumer is gone
@@ -233,10 +287,8 @@ runloop:
 drainloop:
 	for {
 		select {
-		case err := <-ms.Errors:
-			logrus.Errorf("Socket error: %s", err.Error())
 		case err := <-handlerDeath:
-			logrus.Errorf("Handler died: %s", err.Error())
+			logger.Errorf("Handler died: %s", err.Error())
 		case <-time.After(time.Millisecond * 10):
 			break drainloop
 		}
@@ -245,9 +297,18 @@ drainloop:
 	// give goroutines that were blocked on handlerDeath channel
 	// a chance to exit
 	waitdelay.Wait()
-	logrus.Infoln(`CYCLONE shutdown complete`)
+	logger.Infoln(`CYCLONE shutdown complete`)
 	if fault {
 		os.Exit(1)
+	}
+}
+
+// redirectStderr to the file passed in
+// this will allow us to log panics
+func redirectStderr(f *os.File) {
+	err := syscall.Dup2(int(f.Fd()), int(os.Stderr.Fd()))
+	if err != nil {
+		log.Fatalf("Failed to redirect stderr to file: %v", err)
 	}
 }
 

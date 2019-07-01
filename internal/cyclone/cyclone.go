@@ -17,6 +17,7 @@ import (
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
 	"github.com/mjolnir42/limit"
+	"github.com/patrickmn/go-cache"
 	metrics "github.com/rcrowley/go-metrics"
 	wall "github.com/solnx/eye/lib/eye.wall"
 )
@@ -41,21 +42,25 @@ type Cyclone struct {
 	Config   *erebos.Config
 	Metrics  *metrics.Registry
 	Limit    *limit.Limit
+	AppLog   *logrus.Logger
 	// unexported
-	delay    *delay.Delay
-	lookup   *wall.Lookup
-	client   *resty.Client
-	discard  map[string]bool
-	result   chan *alarmResult
-	trackID  map[string]int
-	trackACK map[string]*erebos.Transport
+	delay     *delay.Delay
+	lookup    *wall.Lookup
+	client    *resty.Client
+	discard   map[string]bool
+	whitelist map[string]bool
+	result    chan *alarmResult
+	trackID   map[string]int
+	trackACK  map[string]*erebos.Transport
+	okCache   *cache.Cache
+	errCache  *cache.Cache
 }
 
 // updateOffset updates the consumer offsets in Kafka once all
 // outstanding messages for trackingID have been processed
 func (c *Cyclone) updateOffset(trackingID string) {
 	if _, ok := c.trackID[trackingID]; !ok {
-		logrus.Warnf("Unknown trackingID: %s", trackingID)
+		c.AppLog.Warnf("Unknown trackingID: %s", trackingID)
 		return
 	}
 	// decrement outstanding successes for trackingID
@@ -81,6 +86,10 @@ func (c *Cyclone) commit(msg *erebos.Transport) {
 		}
 		c.delay.Done()
 	}()
+}
+
+func (c *Cyclone) SetLookup(lookup *wall.Lookup) {
+	c.lookup = lookup
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix

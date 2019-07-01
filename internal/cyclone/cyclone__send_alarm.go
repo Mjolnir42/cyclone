@@ -15,7 +15,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/patrickmn/go-cache"
 	metrics "github.com/rcrowley/go-metrics"
 )
 
@@ -47,11 +47,35 @@ type alarmResult struct {
 // process evaluates a metric and raises alarms as required. Must
 // only be called as goroutine after c.delay.Use()
 func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
+	//rate limit the amount of events sent to cams
+	// ok events every 3h and !=ok every 3min
+	switch a.Level {
+	case 0:
+		if _, found := c.okCache.Get(a.EventID); found {
+			c.result <- &alarmResult{
+				trackingID: trackingID,
+				err:        nil,
+			}
+			return
+		}
+		c.okCache.Set(a.EventID, true, cache.DefaultExpiration)
+		c.errCache.Delete(a.EventID)
+	default:
+		if _, found := c.errCache.Get(a.EventID); found {
+			c.result <- &alarmResult{
+				trackingID: trackingID,
+				err:        nil,
+			}
+			return
+		}
+		c.okCache.Delete(a.EventID)
+		c.errCache.Set(a.EventID, true, cache.DefaultExpiration)
+	}
 	defer c.delay.Done()
 	b := new(bytes.Buffer)
 	aSlice := []AlarmEvent{a}
 	if err := json.NewEncoder(b).Encode(aSlice); err != nil {
-		logrus.Errorf(
+		c.AppLog.Errorf(
 			"Cyclone[%d], ERROR json encoding alarm for %s: %s",
 			c.Num, a.EventID, err,
 		)
@@ -63,7 +87,6 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 		}
 		return
 	}
-
 	r := c.client.SetTimeout(
 		time.Duration(c.Config.Cyclone.RequestTimeout) *
 			time.Millisecond).
@@ -71,15 +94,13 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 
 	// acquire resource limit before issuing the POST request
 	c.Limit.Start()
-
 	resp, err := r.SetBody(b).
 		Post(c.Config.Cyclone.DestinationURI)
 
 	// release resource limit
 	c.Limit.Done()
-
 	if err != nil {
-		logrus.Errorf(
+		c.AppLog.Errorf(
 			"Cyclone[%d], ERROR sending alarm for %s: %s",
 			c.Num, a.EventID, err,
 		)
@@ -90,9 +111,8 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 		}
 		return
 	}
-	logrus.Infof(
-		"Cyclone[%d], Dispatched alarm for %s at level %d,"+
-			" returncode was %d",
+	c.AppLog.Infof(
+		"Cyclone[%d], Dispatched alarm for %s at level %d, returncode was %d",
 		c.Num, a.EventID, a.Level, resp.StatusCode,
 	)
 	if resp.StatusCode() >= 209 {
@@ -102,16 +122,12 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 			"Cyclone[%d], ResponseMsg(%d): %s",
 			c.Num, resp.StatusCode(), string(bt),
 		)
-		logrus.Errorln(err.Error())
+		c.AppLog.Errorln(err.Error())
 
 		// reset buffer and encode JSON again so it can be
 		// logged
 		b.Reset()
 		json.NewEncoder(b).Encode(aSlice)
-		logrus.Errorf(
-			"Cyclone[%d], RequestJSON: %s",
-			c.Num, b.String(),
-		)
 		// 4xx errors are caused on this side, abort
 		if resp.StatusCode() < 500 {
 			c.result <- &alarmResult{
@@ -120,8 +136,13 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 				internal:   true,
 				alarm:      &a,
 			}
+
 			return
 		}
+		c.AppLog.Errorf(
+			"Cyclone[%d], RequestJSON: %s",
+			c.Num, b.String(),
+		)
 		c.result <- &alarmResult{
 			trackingID: trackingID,
 			err:        err,
@@ -129,7 +150,6 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 		}
 		return
 	}
-
 	// ensure http.Response.Body is consumed and closed
 	_ = resp.Body()
 	c.result <- &alarmResult{
@@ -141,19 +161,35 @@ func (c *Cyclone) sendAlarm(a AlarmEvent, trackingID string) {
 // resendAlarm raises the alarmapi.error metric and attempts to
 // resend a every 5 seconds
 func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
-	metrics.GetOrRegisterGauge(`/alarmapi.error`,
+	metrics.GetOrRegisterGauge(`.alarmapi.error`,
 		*c.Metrics).Update(1)
 	broken := true
-
+	retryCount := 0
 	b := new(bytes.Buffer)
 	aSlice := []AlarmEvent{*a}
 	// encoding a previously did not cause an internal error
-	json.NewEncoder(b).Encode(aSlice)
+	if err := json.NewEncoder(b).Encode(aSlice); err != nil {
+		c.AppLog.Errorf(
+			"Cyclone[%d], ERROR json encoding alarm for %s: %s",
+			c.Num, a.EventID, err,
+		)
+		c.result <- &alarmResult{
+			trackingID: trackingID,
+			err:        err,
+			internal:   true,
+			alarm:      a,
+		}
+		return
+	}
 
 	// fast first request attempt
 	resendDelay := time.Millisecond * 50
 
-	for broken == true {
+	for broken {
+		if retryCount > 5 {
+			break
+		}
+		retryCount++
 		select {
 		// always listen for shutdown requests
 		case <-c.Shutdown:
@@ -173,7 +209,7 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 			Post(c.Config.Cyclone.DestinationURI)
 
 		if err != nil {
-			logrus.Errorf(
+			c.AppLog.Errorf(
 				"Cyclone[%d], ERROR sending alarm for %s: %s",
 				c.Num, a.EventID, err,
 			)
@@ -181,7 +217,7 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 		}
 		if resp.StatusCode() >= 209 {
 			bt := resp.Body()
-			logrus.Errorf(
+			c.AppLog.Errorf(
 				"Cyclone[%d], ResponseMsg(%d): %s",
 				c.Num, resp.StatusCode(), string(bt),
 			)
@@ -191,12 +227,12 @@ func (c *Cyclone) resendAlarm(a *AlarmEvent, trackingID string) {
 	}
 
 	// switch error metric off
-	metrics.GetOrRegisterGauge(`/alarmapi.error`,
+	metrics.GetOrRegisterGauge(`.alarmapi.error`,
 		*c.Metrics).Update(0)
 
 	// update offset directly since the result channel at this
 	// point likely blocks
-	c.updateOffset(trackingID)
+	//c.updateOffset(trackingID)
 }
 
 // vim: ts=4 sw=4 sts=4 noet fenc=utf-8 ffs=unix

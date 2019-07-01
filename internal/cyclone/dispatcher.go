@@ -8,36 +8,16 @@
 
 package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 import (
-	"encoding/json"
+	"math/rand"
 	"runtime"
-	"time"
 
 	"github.com/mjolnir42/erebos"
-	"github.com/solnx/legacy"
 )
 
 // Dispatch implements erebos.Dispatcher
 func Dispatch(msg erebos.Transport) error {
-	// decode embedded legacy.MetricSplit
-	m := &legacy.MetricSplit{}
-	if err := json.Unmarshal(msg.Value, m); err != nil {
-		return err
-	}
-	msg.HostID = int(m.AssetID)
-
-	// ignore metrics that are simply too old for useful
-	// alerting
-	if time.Now().UTC().Add(AgeCutOff).After(m.TS.UTC()) {
-		// mark as processed
-		msg.Commit <- &erebos.Commit{
-			Topic:     msg.Topic,
-			Partition: msg.Partition,
-			Offset:    msg.Offset,
-		}
-		return nil
-	}
-
-	Handlers[msg.HostID%runtime.NumCPU()].InputChannel() <- &msg
+	hand := (rand.Int() % runtime.NumCPU())
+	Handlers[hand].InputChannel() <- &msg
 	return nil
 }
 

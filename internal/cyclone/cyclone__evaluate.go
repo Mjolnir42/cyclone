@@ -12,19 +12,18 @@ package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 import (
 	"fmt"
 
-	"github.com/Sirupsen/logrus"
+	"github.com/d3luxee/schema"
 	wall "github.com/solnx/eye/lib/eye.wall"
-	"github.com/solnx/legacy"
 )
 
 // evaluate tests m.Value against threshold t. It returns the resulting
 // alarmlevel and metric value as string as well as the number of
 // evalutations that had to be perfomed.
-func (c *Cyclone) evaluate(m *legacy.MetricSplit, t wall.Threshold) (string, string, int64) {
-	logrus.Debugf(
-		"[%d]: evaluating metric %s from %d"+
+func (c *Cyclone) evaluate(m *schema.MetricData, t wall.Threshold) (string, string, int64) {
+	c.AppLog.Debugf(
+		"Cyclone[%d]: evaluating metric %s from %s"+
 			" against config %s",
-		c.Num, m.Path, m.AssetID, t.ID,
+		c.Num, m.MetricName(), m.Hostname(), t.ID,
 	)
 	var broken bool
 	var evaluations int64
@@ -40,53 +39,22 @@ lvlloop:
 		}
 
 		evaluations++
-		logrus.Debugf(
-			"[%d]: checking %s alarmlevel %s",
+		c.AppLog.Debugf(
+			"Cyclone[%d]: checking %s alarmlevel %s",
 			c.Num, t.ID, lvl,
 		)
-		switch m.Type {
-		case `integer`:
-			fallthrough
-		case `long`:
-			broken, value = c.cmpInt(t.Predicate,
-				m.Value().(int64),
-				thrval)
-		case `real`:
-			broken, value = c.cmpFlp(t.Predicate,
-				m.Value().(float64),
-				thrval)
-		default:
-			continue lvlloop
-		}
+
+		broken, value = c.cmpFlp(t.Predicate,
+			m.Value,
+			thrval)
+
 		if broken {
+			c.AppLog.Debugf("Cyclone[%d]: threshold broken for %s.%s: %.2f %s %d", c.Num, m.Hostname(), m.MetricName(), m.Value, t.Predicate, thrval)
 			return lvl, value, evaluations
 		}
 	}
+	c.AppLog.Debugf("Cyclone[%d]: no threshold broken for %s.%s", c.Num, m.Hostname(), m.MetricName())
 	return `0`, value, evaluations
-}
-
-// cmpInt compares an integer value against a threshold
-func (c *Cyclone) cmpInt(pred string, value, threshold int64) (bool, string) {
-	fVal := fmt.Sprintf("%d", value)
-	switch pred {
-	case `<`:
-		return value < threshold, fVal
-	case `<=`:
-		return value <= threshold, fVal
-	case `==`:
-		return value == threshold, fVal
-	case `>=`:
-		return value >= threshold, fVal
-	case `>`:
-		return value > threshold, fVal
-	case `!=`:
-		return value != threshold, fVal
-	default:
-		logrus.Errorf(
-			"Cyclone[%d], ERROR unknown predicate: %s",
-			c.Num, pred)
-		return false, ``
-	}
 }
 
 // cmpFlp compares a floating point value against a threshold
@@ -107,7 +75,7 @@ func (c *Cyclone) cmpFlp(pred string, value float64, threshold int64) (bool, str
 	case `!=`:
 		return value != fthreshold, fVal
 	default:
-		logrus.Errorf(
+		c.AppLog.Errorf(
 			"Cyclone[%d], ERROR unknown predicate: %s",
 			c.Num, pred,
 		)

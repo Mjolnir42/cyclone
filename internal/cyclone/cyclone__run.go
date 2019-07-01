@@ -10,13 +10,10 @@
 package cyclone // import "github.com/solnx/cyclone/internal/cyclone"
 import (
 	"time"
-
-	"github.com/Sirupsen/logrus"
 )
 
 // run is the event loop for Cyclone
 func (c *Cyclone) run() {
-
 runloop:
 	for {
 		select {
@@ -26,6 +23,7 @@ runloop:
 			goto drainloop
 		case msg := <-c.Input:
 			if msg == nil {
+				c.AppLog.Debugln("Message received via erebos input channel was nil")
 				// this can happen if we read the closed Input channel
 				// before the closed Shutdown channel
 				continue runloop
@@ -58,7 +56,8 @@ runloop:
 								break runloop
 							}
 							// alarm sending failed from external error
-							c.resendAlarm(res.alarm, res.trackingID)
+							go c.resendAlarm(res.alarm, res.trackingID)
+							c.updateOffset(res.trackingID)
 							continue eyeloop
 						}
 						c.updateOffset(res.trackingID)
@@ -74,7 +73,8 @@ runloop:
 					break runloop
 				}
 				// alarm sending failed from external error
-				c.resendAlarm(res.alarm, res.trackingID)
+				go c.resendAlarm(res.alarm, res.trackingID)
+				c.updateOffset(res.trackingID)
 				continue runloop
 			}
 			c.updateOffset(res.trackingID)
@@ -90,7 +90,7 @@ drainloop:
 				break drainloop
 			}
 			if err := c.process(msg); err != nil {
-				logrus.Errorln(err.Error())
+				c.AppLog.Errorln(err.Error())
 			}
 		}
 	}
@@ -102,7 +102,7 @@ resultdrain:
 		select {
 		case res := <-c.result:
 			if res.err != nil {
-				logrus.Errorln(res.err.Error())
+				c.AppLog.Errorln(res.err.Error())
 				continue resultdrain
 			}
 			c.updateOffset(res.trackingID)
@@ -113,7 +113,7 @@ resultdrain:
 			break resultdrain
 		}
 	}
-
+	//	c.lookup.Close()
 	c.delay.Wait()
 }
 

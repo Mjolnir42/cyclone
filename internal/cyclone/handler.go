@@ -15,7 +15,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/mjolnir42/delay"
 	"github.com/mjolnir42/erebos"
-	wall "github.com/solnx/eye/lib/eye.wall"
+	"github.com/patrickmn/go-cache"
 )
 
 // Implementation of the erebos.Handler interface
@@ -42,6 +42,8 @@ func (c *Cyclone) Start() {
 		SetHeader(`Content-Type`, `application/json`).
 		SetContentLength(true)
 
+	c.okCache = cache.New(3*time.Hour, 1*time.Hour)
+	c.errCache = cache.New(3*time.Minute, 3*time.Minute)
 	c.trackID = make(map[string]int)
 	c.trackACK = make(map[string]*erebos.Transport)
 
@@ -50,13 +52,14 @@ func (c *Cyclone) Start() {
 	for _, path := range c.Config.Cyclone.DiscardMetrics {
 		c.discard[path] = true
 	}
-	c.lookup = wall.NewLookup(c.Config, `cyclone`)
-	if err := c.lookup.Start(); err != nil {
-		c.Death <- err
-		<-c.Shutdown
-		return
+	c.whitelist = make(map[string]bool)
+	if len(c.Config.Cyclone.PrefixWhitelist) == 0 {
+		c.whitelist["disabled"] = true
+	} else {
+		for _, path := range c.Config.Cyclone.PrefixWhitelist {
+			c.whitelist[path] = true
+		}
 	}
-	defer c.lookup.Close()
 
 	c.result = make(chan *alarmResult,
 		c.Config.Cyclone.HandlerQueueLength,
